@@ -7,6 +7,12 @@
     <packaging>jar</packaging>
     <version>0.1.0</version>
 
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>1.5.8.RELEASE</version>
+    </parent>
+
     <dependencies>
         <!-- tag::joda[] -->
         <dependency>
@@ -23,7 +29,39 @@
             <scope>test</scope>
         </dependency>
         <!-- end::junit[] -->
+
+        <!-- 用于测试restful webservice-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.jayway.jsonpath</groupId>
+            <artifactId>json-path</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- 测试事务-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
     </dependencies>
+
+    <properties>
+        <java.version>1.8</java.version>
+    </properties>
 
     <build>
         <plugins>
@@ -47,6 +85,15 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!--作用1：收集classpath下的所有jars，最终生成有一个可运行的jar包
+                作用2：搜索带main方法的类，标记为可运行的类
+                作用3：提供一个依赖解析器用于设置符合spring boot依赖的版本号
+             -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
