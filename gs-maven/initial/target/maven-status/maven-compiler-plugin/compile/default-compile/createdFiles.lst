@@ -1,11 +1,13 @@
 hello\service\BookingService.class
-hello\WebServiceConsumerApplication.class
-hello\domain\Greeting.class
 hello\domain\Customer.class
 hello\HelloWorld.class
+hello\Greeter.class
+hello\WebServiceConsumerApplication.class
+hello\domain\Greeting.class
+hello\task\ScheduledTasks.class
+hello\ScheduleApplication.class
 hello\domain\Value.class
 hello\TransactionRunner.class
 hello\AccessDataApplication.class
 hello\controller\GreetingController.class
-hello\Greeter.class
 hello\domain\Quote.class
