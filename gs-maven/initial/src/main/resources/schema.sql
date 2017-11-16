@@ -9,5 +9,10 @@ Spring Boot默认启用Spring JDBC初始化程序的快速失败功能，所以�
 
 您也可以通过将spring.datasource.initialize设置为false来禁用初始化
 */
+
+/**
+测试事务的建表语句
+ */
+/*
 drop table BOOKINGS if exists;
-create table BOOKINGS(ID serial, FIRST_NAME varchar(5) NOT NULL);
+create table BOOKINGS(ID serial, FIRST_NAME varchar(5) NOT NULL);*/

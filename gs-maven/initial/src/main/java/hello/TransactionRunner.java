@@ -5,22 +5,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
-import org.springframework.util.Assert;
 
 @Component
-class AppRunner implements CommandLineRunner {
+class TransactionRunner implements CommandLineRunner {
 
-    private final static Logger logger = LoggerFactory.getLogger(AppRunner.class);
+    private final static Logger logger = LoggerFactory.getLogger(TransactionRunner.class);
 
     private final BookingService bookingService;
 
-    public AppRunner(BookingService bookingService) {
+    public TransactionRunner(BookingService bookingService) {
         this.bookingService = bookingService;
     }
 
     @Override
     public void run(String... args) throws Exception {
-        bookingService.book("Alice", "Bob", "Carol");
+        System.out.println("运行APPRunner.run()方法");
+        /*bookingService.book("Alice", "Bob", "Carol");
         Assert.isTrue(bookingService.findAllBookings().size() == 3,
                 "First booking should work with no problem");
         logger.info("Alice, Bob and Carol have been booked");
@@ -54,7 +54,7 @@ class AppRunner implements CommandLineRunner {
         logger.info("You shouldn't see Buddy or null. null violated DB constraints, and " +
                 "Buddy was rolled back in the same TX");
         Assert.isTrue(bookingService.findAllBookings().size() == 3,
-                "'null' should have triggered a rollback");
+                "'null' should have triggered a rollback");*/
     }
 
 }
