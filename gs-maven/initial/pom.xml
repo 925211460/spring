@@ -57,6 +57,28 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
+
+        <!-- 测试模板,配置这个之后spring才知道去哪个路径找页面文件-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+
+        <!--测试JMS -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-activemq</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.activemq</groupId>
+            <artifactId>activemq-broker</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
     </dependencies>
 
     <properties>
@@ -65,7 +87,7 @@
 
     <build>
         <plugins>
-            <!--此插件的目的是方便生成的jar包可执行 -->
+<!--            &lt;!&ndash;此插件的目的是方便生成的jar包可执行 &ndash;&gt;
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -85,7 +107,7 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
+            </plugin>-->
 
             <!--作用1：收集classpath下的所有jars，最终生成有一个可运行的jar包
                 作用2：搜索带main方法的类，标记为可运行的类
@@ -97,5 +119,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>

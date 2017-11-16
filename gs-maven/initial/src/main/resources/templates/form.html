@@ -1,0 +1,27 @@
+<html xmlns:th="http://www.w3.org/1999/xhtml">
+<body>
+
+<!--
+默认情况下，模板位于templates /下的类路径中，并通过从文件名中去除“.html”后缀来解析为视图
+可以根据您需要实现的方式，以各种方式更改和覆盖Thymeleaf设置，但细节与本指南无关
+
+这个表单被标记为由您在WebController控制器的GET方法中看到的PersonForm对象的备份-->
+<form action="#" th:action="@{/}" th:object="${personForm}" method="post">
+    <table>
+        <tr>
+            <td>Name:</td>
+            <td><input type="text" th:field="*{name}" /></td>
+            <td th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name Error</td>
+        </tr>
+        <tr>
+            <td>Age:</td>
+            <td><input type="text" th:field="*{age}" /></td>
+            <td th:if="${#fields.hasErrors('age')}" th:errors="*{age}">Age Error</td>
+        </tr>
+        <tr>
+            <td><button type="submit">Submit</button></td>
+        </tr>
+    </table>
+</form>
+</body>
+</html>
