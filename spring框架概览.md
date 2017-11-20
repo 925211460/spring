@@ -1000,3 +1000,202 @@ public class Foo {
 ```
 
 当foo bean的accounts属性准备注入时，强类型Map <String，Float>的元素类型的泛型信息可以通过反射获得。因此，Spring的类型转换基础组件将不同的值元素识别为类型为Float，并将字符串值9.99,2.75和3.99转换为实际的Float类型。
+
+#### 空和空字符串值
+
+Spring把空的参数当作空字符串来处理。以下基于XML的配置元数据片段将email属性设置为空字符串值（“”）。
+
+```xml
+<bean class="ExampleBean">
+        <property name="email" value=""/>
+</bean>
+```
+
+前面的例子等同于下面的Java代码：
+
+```java
+exampleBean.setEmail("")
+```
+
+<null />元素处理空值。例如：
+
+```xml
+<bean class="ExampleBean">
+        <property name="email">
+                <null/>
+        </property>
+</bean>
+```
+
+以上配置相当于以下Java代码：
+
+```java
+exampleBean.setEmail(null)
+```
+
+#### 用p-namespace命名空间实现XML快捷方式
+
+ p-namespace使您可以使用bean元素的属性来代替嵌套的<property />元素来描述property values和/或引用的bean。
+
+Spring支持基于XML Schema定义的名称空间的可扩展配置格式。本章中讨论的bean配置格式是在XML Schema文档中定义的。但是，p-namespace没有在XSD文件中定义，只存在于Spring的core中。
+
+```xml
+<beans xmlns="http://www.springframework.org/schema/beans"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:p="http://www.springframework.org/schema/p"
+        xsi:schemaLocation="http://www.springframework.org/schema/beans
+                http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+        <bean name="classic" class="com.example.ExampleBean">
+                <property name="email" value="foo@bar.com"/>
+        </bean>
+
+        <bean name="p-namespace" class="com.example.ExampleBean"
+                p:email="foo@bar.com"/>
+</beans>
+```
+
+该示例在bean定义中显示了名为email的 p-namespace 中的一个属性。这告诉Spring包含一个属性声明。如前所述， p-namespace 没有schema 定义，因此您可以将该属性的名称设置为bean的属性名称。
+
+这个下一个例子包含了两个bean定义，它们都引用了另一个bean：
+
+```xml
+<beans xmlns="http://www.springframework.org/schema/beans"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:p="http://www.springframework.org/schema/p"
+        xsi:schemaLocation="http://www.springframework.org/schema/beans
+                http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+        <bean name="john-classic" class="com.example.Person">
+                <property name="name" value="John Doe"/>
+                <property name="spouse" ref="jane"/>
+        </bean>
+
+        <bean name="john-modern"
+                class="com.example.Person"
+                p:name="John Doe"
+                p:spouse-ref="jane"/>
+
+        <bean name="jane" class="com.example.Person">
+                <property name="name" value="Jane Doe"/>
+        </bean>
+</beans>
+```
+
+正如你所看到的，这个例子不仅包含使用 p-namespace 的属性值，而且还使用特殊的格式来声明属性引用。而第一个bean定义使用<property name =“spouse”ref =“jane”/>来创建一个从bean john到bean jane的引用，而第二个bean定义使用p：spouse-ref =“jane”做与property元素完全一样的东西。在这种情况下，spouse是属性名称，而-ref部分则表明这不是一个基本的值，而是对另一个bean的引用。
+
+p-名称空间不如标准XML格式那么灵活。例如，声明属性引用的格式与以Ref结尾的属性冲突，而标准的XML格式则不会。我们建议您谨慎选择您的方法，并将其传达给您的团队成员，以避免同时使用所有三种方法生成XML文档。
+
+#### 用c-namespace命名空间实现XML快捷方式
+
+与[XML shortcut with the p-namespace](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-p-namespace)类似，Spring 3.1中新引入的c-namespace允许使用内联属性来配置构造函数参数，而不是嵌套constructor-arg元素。
+
+让我们来看一下[Constructor-based dependency injection](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-constructor-injection) 的例子：c：namespace：
+
+```xml
+<beans xmlns="http://www.springframework.org/schema/beans"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:c="http://www.springframework.org/schema/c"
+        xsi:schemaLocation="http://www.springframework.org/schema/beans
+                http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+        <bean id="bar" class="x.y.Bar"/>
+        <bean id="baz" class="x.y.Baz"/>
+
+        <!-- traditional declaration -->
+        <bean id="foo" class="x.y.Foo">
+                <constructor-arg ref="bar"/>
+                <constructor-arg ref="baz"/>
+                <constructor-arg value="foo@bar.com"/>
+        </bean>
+
+        <!-- c-namespace declaration -->
+        <bean id="foo" class="x.y.Foo" c:bar-ref="bar" c:baz-ref="baz" c:email="foo@bar.com"/>
+
+</beans>
+```
+
+c-namespace使用与p-namespace（在引用的bean的尾部加上-ref）相同的约定来通过名称来设置构造函数参数。而且，虽然它没有在XSD架构中定义（但它存在于Spring内核中），也需要声明它。
+
+对于构造函数参数名称不可用的罕见情况（通常如果字节码是在没有调试信息的情况下编译的），可以使用回退参数索引：
+
+```xml
+<!-- c-namespace index declaration -->
+<bean id="foo" class="x.y.Foo" c:_0-ref="bar" c:_1-ref="baz"/>
+```
+
+*由于XML语法，索引表示法需要前导_的存在，因为XML属性名称不能以数字开头（即使某些IDE允许）。*
+
+实际上，构造函数解析机制在匹配参数方面非常有效，除非真正需要，否则我们建议在整个配置中使用名称符号。
+
+#### 复合属性名称
+
+当您设置bean属性时，只要最终属性名称以外的路径的所有组件都不为null，就可以使用复合或嵌套的属性名称。考虑下面的bean定义。
+
+```xml
+<bean id="foo" class="foo.Bar">
+        <property name="fred.bob.sammy" value="123" />
+</bean>
+```
+
+foo bean有一个fred属性，fred有一个bob属性，bob有一个sammy属性，最终sammy属性被设置为123.为了使这个工作，foo的fred属性以及fred的bob属性在构造bean之后，一定不能为null，否则抛出NullPointerException异常。
+
+### 1.4.3使用depends-on
+
+如果一个bean是另一个bean的依赖，通常意味着一个bean被设置为另一个的属性。通常，您可以使用基于XML的配置元数据中的<ref />元素来完成此操作。但是，有时bean之间的依赖关系并不那么直接;例如，类中的静态初始化器需要被触发，比如数据库驱动程序注册。 depends-on属性可以明确地强制一个或多被引用的bean在引用它们的bean初始化之前被初始化。以下示例使用depends-on属性来表示对单个bean的依赖关系：
+
+```xml
+<bean id="beanOne" class="ExampleBean" depends-on="manager"/>
+<bean id="manager" class="ManagerBean" />
+```
+
+要表示对多个bean的依赖关系，请提供一个bean名称列表作为depends-on属性的值，用逗号，空格和分号作为有效的分隔符：
+
+```xml
+<bean id="beanOne" class="ExampleBean" depends-on="manager,accountDao">
+        <property name="manager" ref="manager" />
+</bean>
+
+<bean id="manager" class="ManagerBean" />
+<bean id="accountDao" class="x.y.jdbc.JdbcAccountDao" />
+```
+
+bean定义中的depends-on属性可以指定一个初始化时间依赖项，并且在只有singleton bean的情况下，可以指定相应的销毁时间依赖项。定义与给定bean的依赖关系的依赖bean首先被销毁，然后给定的bean本身被销毁。因此，依赖也可以控制关闭顺序。
+
+### 1.4.4. Lazy-initialized beans
+
+默认情况下，ApplicationContext实现急切地创建和配置所有的[singleton](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-scopes-singleton)  bean。通常，这种预先实例化是可取的，因为配置或周围环境中的错误被立即发现，而不是几小时甚至几天之后。当这种行为不可取时，可以通过将bean定义标记为lazy-initialized来防止单例bean的预先实例化。一个 lazy-initialized的bean告诉IoC容器在第一次请求时创建一个bean实例，而不是在启动时。
+
+在XML中，这个行为是由<bean />元素的lazy-init属性控制的;例如：
+
+```xml
+<bean id="lazy" class="com.foo.ExpensiveToCreateBean" lazy-init="true"/>
+<bean name="not.lazy" class="com.foo.AnotherBean"/>
+```
+
+当一个ApplicationContext使用前面的配置时，名为lazy的bean在ApplicationContext启动时并不急于预先实例化，而not.lazy bean则急切地预先实例化。
+
+然而，当一个lazy-initialized的bean是一个*not* lazy-initialized的依赖时，ApplicationContext在启动时会创建lazy-initialized bean，因为它必须满足singleton’s的依赖关系。 lazy-initialized的bean被注入到一个singleton bean中，而不是延迟初始化的。
+
+您还可以通过在<beans />元素上使用default-lazy-init属性来控制容器级别的lazy-initialized;例如：
+
+```xml
+<beans default-lazy-init="true">
+        <!-- no beans will be pre-instantiated... -->
+</beans>
+```
+
+### 1.4.5. Autowiring collaborators
+
+Spring容器可以自动联系合作bean之间的关系。您可以允许Spring通过检查ApplicationContext的内容来自动为您的bean解析协作者（其他bean）。自动装配具有以下优点：
+
+自动装配可以显着减少指定属性或构造函数参数的需要。 （其他机制，如本章 [discussed elsewhere in this chapter](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-child-bean-definitions) 讨论的bean模板，在这方面也是有价值的。
+
+自动装配可以随着对象的发展而更新配置。例如，如果您需要向类中添加依赖项，则可以自动满足该依赖项，而无需修改配置。因此，在开发过程中，自动装配可能特别有用，而且在代码库变得更加稳定的情况下，不会否定切换到显式写入的选项。
+
+当使用基于XML的配置元数据[2]时，您可以使用<bean />元素的autowire属性为bean定义指定自动装配模式。自动装配功能有四种模式。您可以指定每个bean的自动装配，可以选择哪些自动装配。
+
+
+
+
+
