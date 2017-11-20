@@ -1193,9 +1193,43 @@ Spring容器可以自动联系合作bean之间的关系。您可以允许Spring�
 
 自动装配可以随着对象的发展而更新配置。例如，如果您需要向类中添加依赖项，则可以自动满足该依赖项，而无需修改配置。因此，在开发过程中，自动装配可能特别有用，而且在代码库变得更加稳定的情况下，不会否定切换到显式写入的选项。
 
-当使用基于XML的配置元数据[2]时，您可以使用<bean />元素的autowire属性为bean定义指定自动装配模式。自动装配功能有四种模式。您可以指定每个bean的自动装配，可以选择哪些自动装配。
+当使用基于XML的配置元数据[2]时，您可以使用<bean />元素的autowire属性为bean定义指定自动装配模式。自动装配功能有四种模式。您可以指定每个bean的autowire，可以选择哪些自动装配。
 
+|    Mode     |               Explanation                |
+| :---------: | :--------------------------------------: |
+|     no      | （默认）无自动装配。 Bean引用必须通过一个ref元素来定义。建议不要在更大的部署中更改默认设置，因为明确的指定的引用bean提供了更好的控制和清晰度。它在一定程度上记录了一个系统的结构。 |
+|   byName    | 按属性名称自动装配。 Spring会查找与需要自动装配的属性同名的bean。例如，如果一个bean定义被设置为autowire by name，并且它包含一个master属性（也就是说，它有一个setMaster（..）方法），Spring会查找名为master的bean定义，并使用它来设置属性。 |
+|   byType    | 如果容器中只有一个与将被注入的属性类型相同的bean，则允许属性自动装配。如果存在多个，则会引发一个致命异常，这表明您不能使用该bean的byType注入类型。如果没有匹配的bean，什么都不会发生。该property未设置 |
+| constructor | 类似于byType，但适用于构造函数参数。如果容器中不存在唯一的构造函数参数类型的bean，则会引发致命错误。 |
 
+使用byType或*constructor* autowiring模式，您可以连线数组和类型集合。在这种情况下，容器中所有符合预期类型的自动装配候选都被提供来满足依赖关系。如果预期的键类型是字符串，则可以自动装载强类型的映射。自动装配的Maps值将由所有与预期类型匹配的bean实例组成，Maps键将包含相应的bean名称。
 
+您可以将自动装配行为与自动装配完成后执行的依赖关系检查相结合。
 
+#### 自动装配的局限和缺点
 
+自动装配在项目中始终使用时效果最佳。如果通常不使用自动装配，仅使用它来连接一个或两个bean定义可能会使开发人员感到困惑。
+
+考虑自动装配的局限和缺点：
+
+- property和constructor-arg中的显式依赖关系总是覆盖自动装配。您不能自动调用所谓的简单属性，例如基本类型，字符串和类（以及这种简单属性的数组）。spring设计就是这样的限制。
+- 自动装配不如准确指定。虽然，如上表所述，虽然Spring在小心避免歧义情况下的揣测造成的不期望的结果，但Spring管理的对象之间的关系不再被明确地记录下来。
+- 对于可能从Spring容器生成文档的工具，这些bean之间的信息可能不可用。
+- 容器中的多个bean定义可以匹配由setter方法或构造函数参数指定的类型，以便自动装配。对于数组，集合或map，这不一定是个问题。然而对于期望单一值的依赖，这种歧义是解决不了的。如果没有唯一的bean定义可用，则抛出异常。
+
+在最后一种情况下，你有几个选择：
+
+- 放弃autowiring以支持显式指定依赖关系。
+- 通过将autowire-candidate属性设置为false，避免autowiring  bean定义，如下一节所述。
+- 指定单个bean定义作为主要候选者，通过将其<bean />元素的`primary` 属性设置为true。
+- 如 [Annotation-based container configuration](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-annotation-config).中所述，通过并使用基于注释的配置实现更加细粒度的控制。
+
+#### 从自动装配中排除一个bean
+
+在每个bean的基础上，您可以从autowiring中排除一个bean。在Spring的XML格式中，将<bean />元素的autowire-candidate属性设置为false;该容器使该特定的bean定义对autowiring基础组件设施不可用（包括诸如@Autowired之类的注释样式配置）。
+
+*autowire-candidate属性仅影响type-based autowiring。它不会影响by name的显式引用，即使指定的bean的autowire-candidate属性为false，也可以被自动注入。因此，如果名称匹配，by name autowiring将注入一个bean。*
+
+您还可以根据对bean名称进行模式匹配来限制autowire candidates。顶层的<beans />元素在其default-autowire-candidates属性中接受一个或多个模式。例如，要将autowire候选者状态限制为名称以Repository结尾的任何Bean，请提供* Repository的值。要提供多种模式，请在逗号分隔它们。对于bean定义autowire-candidate属性，显式值true或false总是优先的，对于这样的bean，模式匹配规则不起作用。
+
+这些技术对于不想通过自动装配被注入其他bean的bean是有用的。这并不意味着排除的bean本身不能使用自动装配进行配置。相反，bean本身是不能被自动装配进其他bean的。
