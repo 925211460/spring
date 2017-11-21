@@ -1233,3 +1233,144 @@ Spring容器可以自动联系合作bean之间的关系。您可以允许Spring�
 您还可以根据对bean名称进行模式匹配来限制autowire candidates。顶层的<beans />元素在其default-autowire-candidates属性中接受一个或多个模式。例如，要将autowire候选者状态限制为名称以Repository结尾的任何Bean，请提供* Repository的值。要提供多种模式，请在逗号分隔它们。对于bean定义autowire-candidate属性，显式值true或false总是优先的，对于这样的bean，模式匹配规则不起作用。
 
 这些技术对于不想通过自动装配被注入其他bean的bean是有用的。这并不意味着排除的bean本身不能使用自动装配进行配置。相反，bean本身是不能被自动装配进其他bean的。
+
+### 1.4.6. Method injection
+
+在大多数应用场景中，容器中的大部分bean的都是[singletons](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-scopes-singleton).。当单例bean需要与另一个单例bean协作，或者非单例bean需要与另一个非单例bean协作时，通常通过将一个bean定义为另一个的属性来处理依赖。单当bean的生命周期不同时会出现问题。假设也许在A的每个方法调用上单例bean A需要使用非单例（原型）bean B。但是容器只创建一个单例bean A，因此只有一次机会来设置属性。所以每当需要时，容器不能向bean A提供bean B的新实例。
+
+一个解决方案是放弃一些控制反转。您可以通过实现ApplicationContextAware接口[make bean A aware of the container](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-aware)，并且每当bean A需要时，通过[making a getBean("B") call to the container](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-client) 请求新的bean B实例。以下是这种方法的一个例子：
+
+```java
+// a class that uses a stateful Command-style class to perform some processing
+package fiona.apple;
+
+// Spring-API imports
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+
+public class CommandManager implements ApplicationContextAware {
+
+        private ApplicationContext applicationContext;
+
+        public Object process(Map commandState) {
+                // grab a new instance of the appropriate Command
+                Command command = createCommand();
+                // set the state on the (hopefully brand new) Command instance
+                command.setState(commandState);
+                return command.execute();
+        }
+
+        protected Command createCommand() {
+                // notice the Spring API dependency!
+                return this.applicationContext.getBean("command", Command.class);
+        }
+
+        public void setApplicationContext(
+                        ApplicationContext applicationContext) throws BeansException {
+                this.applicationContext = applicationContext;
+        }
+}
+```
+
+前面的内容是不可取的，因为业务代码知道并耦合到Spring框架。方法注入是Spring IoC容器的一个高级特性，它允许以简洁的方式处理这个用例
+
+您可以在此[this blog entry](https://spring.io/blog/2004/08/06/method-injection/)中阅读更多关于方法注入的动机。
+
+#### 查找方法注入
+
+查找方法注入是覆盖容器管理的bean上的方法的能力，用于返回容器中另一个指定名称的bean的查找结果。查找通常包含一个prototype bean，如前一节所述。 Spring Framework通过使用CGLIB库中的字节码动态生成覆盖该方法的子类，从而实现了此方法注入。
+
+- 为了使这个动态子类工作，Spring bean容器将继承的类不能是final，被覆盖的方法也不能是final。
+- 对具有抽象方法的类进行单元测试需要您自己创建该类的子类，并提供抽象方法的实现。
+- 组件扫描也需要具体的方法，这需要具体的类来提取。
+- 另一个关键的限制是 lookup methods不能和工厂方法一起使用，特别是不能和configuration类中的@Bean方法一起使用，因为在这种情况下容器不负责创建实例，因此不能创建运行时生成的子类。
+
+查看前面代码片断中的CommandManager类，可以看到Spring容器将动态地覆盖createCommand（）方法的实现。，在重做的例子中可以看到你的CommandManager类不会有任何的Spring依赖关系：
+
+```java
+package fiona.apple;
+
+// no more Spring imports!
+
+public abstract class CommandManager {
+
+        public Object process(Object commandState) {
+                // grab a new instance of the appropriate Command interface
+                Command command = createCommand();
+                // set the state on the (hopefully brand new) Command instance
+                command.setState(commandState);
+                return command.execute();
+        }
+
+        // okay... but where is the implementation of this method?
+        protected abstract Command createCommand();
+}
+```
+
+在包含要注入的方法的客户端类（本例中为CommandManager）中，要注入的方法需要以下形式的签名：
+
+```xml
+<public|protected> [abstract] <return-type> theMethodName(no-arguments);
+```
+
+如果方法是抽象的，则动态生成的子类将实现该方法。否则，动态生成的子类将覆盖原始类中定义的具体方法。例如：
+
+```xml
+<!-- a stateful bean deployed as a prototype (non-singleton) -->
+<bean id="myCommand" class="fiona.apple.AsyncCommand" scope="prototype">
+        <!-- inject dependencies here as required -->
+</bean>
+
+<!-- commandProcessor uses statefulCommandHelper -->
+<bean id="commandManager" class="fiona.apple.CommandManager">
+        <lookup-method name="createCommand" bean="myCommand"/>
+</bean>
+```
+
+标识为commandManager的bean在需要myCommand bean的新实例时调用自己的方法createCommand（）。您必须小心地将myCommand bean作为原型部署，如果这实际上是需要的话。如果它是[singleton](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-scopes-singleton)，则每次返回myCommand bean的同一个实例。
+
+或者，在基于注释的组件模型中，您可以通过@Lookup注释声明一个查找方法：
+
+```java
+public abstract class CommandManager {
+
+        public Object process(Object commandState) {
+                Command command = createCommand();
+                command.setState(commandState);
+                return command.execute();
+        }
+
+        @Lookup("myCommand")
+        protected abstract Command createCommand();
+}
+```
+
+或者，更习惯地说，您可能依赖于目标bean根据查找方法的声明返回类型得到解决：
+
+```java
+public abstract class CommandManager {
+
+        public Object process(Object commandState) {
+                MyCommand command = createCommand();
+                command.setState(commandState);
+                return command.execute();
+        }
+
+        @Lookup
+        protected abstract MyCommand createCommand();
+}
+```
+
+请注意，您通常会使用具体的存根实现来声明这样的带注解的查找方法，以使它们与Spring的组件扫描规则兼容，规则中抽象类在默认情况下被忽略。这个规则不适用于显式注册或显式导入的bean。
+
+```
+访问不同范围的目标bean的另一种方式是ObjectFactory / Provider注入点。查看Scoped beans as dependencies。
+
+感兴趣的读者也可以找到ServiceLocatorFactoryBean（在org.springframework.beans.factory.config包中）。
+
+```
+
+#### 任意方法替换
+
+与查找方法注入相比，不太有用的方法注入形式是能够用另一个方法实现来替换托管bean中的任意方法。用户可以安全地跳过本节的其余部分，直到实际需要功能为止。
