@@ -1538,3 +1538,91 @@ public class AppPreferences {
 
 #### 作用域bean作为依赖
 
+Spring IoC容器不仅管理对象（bean）的实例化，还管理协作者（或依赖关系）的关联。如果你想把一个HTTP request scope的bean注入到另一个更长的作用域的bean中，你可以选择注入一个AOP代理来代替作用域bean。也就是说，您需要注入一个代理对象，该对象暴露与作用域对象相同的公共接口，但也可以从相关作用域（例如HTTP请求）中检索真实的目标对象，并将方法调用委托给实际对象。
+
+```
+您也可以在范围为singleton的bean之间使用<aop：scoped-proxy />，然后通过一个可序列化的中间代理引用目标bean，因此可以在反序列化中重新获得目标单例bean。
+
+当针对prototype scope的bean声明<aop：scoped-proxy />时，共享代理上的每个方法调用都将导致创建一个新的目标实例，然后请求将被转发到该实例。
+
+此外，在lifecycle-safe方式中范围化代理不是从较短范围访问Beans的唯一方式。您也可以简单地声明您的注入点（即constructor/setter argument or autowired field）为ObjectFactory <MyTargetBean>，允许getObject（）调用每次按需检索当前实例 - 不需要一致保持实例或单独存储。
+
+作为一个扩展的变体，你可以声明ObjectProvider <MyTargetBean>，它提供了几个额外的访问变体，包括getIfAvailable和getIfUnique。
+
+JSR-330变种被称为Provider，与Provider <MyTargetBean>声明和相应的get（）一起调用用于每个请求。有关JSR-330的更多详细信息，请参阅here。
+```
+
+以下示例中的配置只有一行，但对了解为什么以及其后面的怎么做很重要。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:aop="http://www.springframework.org/schema/aop"
+        xsi:schemaLocation="http://www.springframework.org/schema/beans
+                http://www.springframework.org/schema/beans/spring-beans.xsd
+                http://www.springframework.org/schema/aop
+                http://www.springframework.org/schema/aop/spring-aop.xsd">
+
+        <!-- an HTTP Session-scoped bean exposed as a proxy -->
+        <bean id="userPreferences" class="com.foo.UserPreferences" scope="session">
+                <!-- instructs the container to proxy the surrounding bean -->
+                <aop:scoped-proxy/>
+        </bean>
+
+        <!-- a singleton-scoped bean injected with a proxy to the above bean -->
+        <bean id="userService" class="com.foo.SimpleUserService">
+                <!-- a reference to the proxied userPreferences bean -->
+                <property name="userPreferences" ref="userPreferences"/>
+        </bean>
+</beans>
+```
+
+要创建这样一个代理，可以将一个子<aop：scoped-proxy />元素插入到一个有作用域的bean定义中（请参阅 [Choosing the type of proxy to create](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-scopes-other-injection-proxies)和[XML Schema-based configuration](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#xsd-schemas)）。为什么在`request`, `session`级别定义的bean需要<aop：scoped-proxy />元素？让我们来看看下面的singleton bean的定义，并将其与您需要为上述范围定义的内容进行对比（请注意，以下userPreferences bean定义不完整）。
+
+```xml
+<bean id="userPreferences" class="com.foo.UserPreferences" scope="session"/>
+
+<bean id="userManager" class="com.foo.UserManager">
+        <property name="userPreferences" ref="userPreferences"/>
+</bean>
+```
+
+在前面的例子中，singleton bean userManager注入了对HTTP Session范围的bean userPreferences的引用。这里的要点是userManager bean是一个singleton：它将被实例化，每个容器只实例化一次，它的依赖关系（在这种情况下，只有一个，userPreferences bean）也只被注入一次。这意味着userManager bean只能在完全相同的userPreferences对象上运行，也就是最初注入的对象。
+
+在将生命较短的作用域bean注入到更长寿命的作用域bean中时上面的行为不是我们想要的，例如将HTTP session scope的依赖bean注入到singleton bean中。相反，您需要一个single  userManager对象，并且在HTTP Session的生命周期中，您需要一个特定于HTTP Session的userPreferences对象。因此，容器创建一个代理对象，该对象暴露与UserPreferences类（理想情况下为UserPreferences实例的对象）完全相同的公共接口，该对象可以从作用域机制（HTTP请求，Session等）中获取真实的UserPreferences对象。容器将这个代理对象注入到userManager bean中，而不关注这个UserPreferences引用是一个代理。在这个例子中，当一个UserManager实例在依赖注入的UserPreferences对象上调用一个方法时，它实际上是在代理上调用一个方法。然后，代理从HTTP会话中（本例中）获取真实的UserPreferences对象，并将方法调用委托给获取的实际UserPreferences对象。
+
+因此，在将请求和会话范围的bean注入协作对象时，您需要以下正确且完整的配置：
+
+```xml
+<bean id="userPreferences" class="com.foo.UserPreferences" scope="session">
+        <aop:scoped-proxy/>
+</bean>
+
+<bean id="userManager" class="com.foo.UserManager">
+        <property name="userPreferences" ref="userPreferences"/>
+</bean>
+```
+
+#### 选择要创建的代理类型
+
+默认情况下，当Spring容器为使用<aop：scoped-proxy />元素标记的bean创建代理时，将创建一个基于CGLIB的类代理。
+
+```
+CGLIB代理只拦截public方法调用！不要使用这种代理的非公开方法;它们不会被委托给实际的作用域对象。
+```
+
+另外，可以把<aop：scoped-proxy />元素的proxy-target-class属性指定为false来配置Spring容器，以便为scope的bean创建标准的基于JDK接口的代理。使用基于JDK接口的代理意味着您不需要应用程序类路径中的其他库来实现这种代理。但是，这也意味着作用域bean的类必须至少实现一个接口，而注入了作用域bean的所有协作者必须通过一个接口引用该作用域bean。
+
+```xml
+<!-- DefaultUserPreferences implements the UserPreferences interface -->
+<bean id="userPreferences" class="com.foo.DefaultUserPreferences" scope="session">
+        <aop:scoped-proxy proxy-target-class="false"/>
+</bean>
+
+<bean id="userManager" class="com.foo.UserManager">
+        <property name="userPreferences" ref="userPreferences"/>
+</bean>
+```
+
+For more detailed information about choosing class-based or interface-based proxying, see [Proxying mechanisms](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#aop-proxying).
