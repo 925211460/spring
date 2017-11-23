@@ -1853,3 +1853,126 @@ public interface SmartLifecycle extends Lifecycle, Phased {
 
 如上所述，LifecycleProcessor接口也定义了用于refresh和close上下文的回调方法。后者将驱动关闭过程，就好像Lifecyce bean的stop（）被显式调用一样，但是只有当上下文关闭时才会发生。另一方面，'刷新'回调使SmartLifecycle bean的另一个功能可以被实现。当上下文刷新时（在所有对象被实例化和初始化之后），该回调将被调用，并且在那时default lifecycle processor将检查由每个SmartLifecycle对象的isAutoStartup（）方法返回的布尔值。如果为“true”，那么该对象将在那一刻开始，而不是等待显式调用上下文或自己的start（）方法（与上下文刷新不同，对于标准的context实现，start过程并不会自动执行） 。 “阶段”值以及任何“依赖”关系将按照上述相同的方式确定启动顺序。
 
+#### 在非web应用程序正常的关闭Spring IoC容器
+
+```
+本节仅适用于非Web应用程序。 Spring的基于Web的ApplicationContext实现已经有适当的代码来在相关的Web应用程序关闭时正常关闭Spring IoC容器。
+```
+
+如果您在非Web应用程序环境中使用Spring的IoC容器，例如，在客户端桌面环境;您在JVM中注册了一个关闭钩子。这样做可以确保正常关闭并在单例bean上调用相关的销毁方法，从而释放所有资源。当然，你仍然必须正确配置和实现这些销毁回调。
+
+要注册一个关闭钩子，可以调用ConfigurableApplicationContext接口上声明的registerShutdownHook（）方法：
+
+```java
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public final class Boot {
+
+        public static void main(final String[] args) throws Exception {
+                ConfigurableApplicationContext ctx = new ClassPathXmlApplicationContext("beans.xml");
+
+                // add a shutdown hook for the above context...
+                ctx.registerShutdownHook();
+
+                // app runs here...
+
+                // main method exits, hook is called prior to the app shutting down...
+        }
+}
+```
+
+### 1.6.2. ApplicationContextAware and BeanNameAware
+
+当一个ApplicationContext创建一个实现org.springframework.context.ApplicationContextAware接口的对象实例时，该实例保持了对该ApplicationContext的引用
+
+```java
+public interface ApplicationContextAware {
+
+        void setApplicationContext(ApplicationContext applicationContext) throws BeansException;
+}
+```
+
+因此，bean可以以编程方式操作创建它们的ApplicationContext，通过ApplicationContext接口或通过将对ApplicationContex的引用强制转换为此接口的已知子类（如ConfigurableApplicationContext），这些子类具有其他的功能。一个用途是对其他bean的程序化获取。有时这种能力是有用的;然而，一般来说，你应该避免它，因为它将代码耦合到Spring，并且不遵循控制反转，控制反转中协作者作为属性被提供给bean。 ApplicationContext的其他方法提供对文件资源的访问，发布应用程序事件和访问MessageSource。这些附加功能在 [Additional capabilities of the ApplicationContext](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#context-introduction)进行了介绍。
+
+从Spring 2.5开始，自动装配是获得ApplicationContext引用的另一种方法。 “传统”构造函数和byType自动装配模式（如 [Autowiring collaborators](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-autowire)中所述）可以分别为构造函数参数或setter方法参数提供ApplicationContext类型的依赖。为了获得更多的灵活性，包括自动装配字段和多个参数方法的功能，请使用新的基于注释的自动装配功能。如果这样做的话，ApplicationContext被自动装入一个字段，构造函数参数或方法参数，如果所涉及的字段，构造函数或方法携带@Autowired注释，则该参数将期望ApplicationContext类型。有关更多信息，请参阅[@Autowired](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-autowired-annotation)。
+
+当一个ApplicationContext创建一个实现了org.springframework.beans.factory.BeanNameAware接口的类时，这个类包含了一个在其关联的对象定义中定义的名字的引用。
+
+```java
+public interface BeanNameAware {
+
+        void setBeanName(String name) throws BeansException;
+}
+```
+
+setBeanName()回调在正常的bean属性填充之后，但在初始化回调（如InitializingBean afterPropertiesSet或自定义init方法）之前调用。
+
+### 1.6.3其他Aware接口
+
+除了上面讨论的ApplicationContextAware和BeanNameAware之外，Spring提供了一系列的Aware接口，允许bean向容器指示他们需要一定的基础设施依赖。最重要的Aware接口总结如下 - 作为一般规则，名称是依赖类型的一个很好的指示：
+
+| Name                             | Injected Dependency                      | Explained in…                            |
+| -------------------------------- | ---------------------------------------- | ---------------------------------------- |
+| `ApplicationContextAware`        | Declaring `ApplicationContext`           | [ApplicationContextAware and BeanNameAware](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-aware) |
+| `ApplicationEventPublisherAware` | Event publisher of the enclosing `ApplicationContext` | [Additional capabilities of the ApplicationContext](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#context-introduction) |
+| `BeanClassLoaderAware`           | Class loader used to load the bean classes. | [Instantiating beans](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-class) |
+| `BeanFactoryAware`               | Declaring `BeanFactory`                  | [ApplicationContextAware and BeanNameAware](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-aware) |
+| `BeanNameAware`                  | Name of the declaring bean               | [ApplicationContextAware and BeanNameAware](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-aware) |
+| `BootstrapContextAware`          | Resource adapter `BootstrapContext`the container runs in. Typically available only in JCA aware `ApplicationContext`s | [JCA CCI](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/integration.html#cci) |
+| `LoadTimeWeaverAware`            | Defined *weaver* for processing class definition at load time | [Load-time weaving with AspectJ in the Spring Framework](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#aop-aj-ltw) |
+| `MessageSourceAware`             | Configured strategy for resolving messages (with support for parametrization and internationalization) | [Additional capabilities of the ApplicationContext](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#context-introduction) |
+| `NotificationPublisherAware`     | Spring JMX notification publisher        | [Notifications](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/integration.html#jmx-notifications) |
+| `ResourceLoaderAware`            | Configured loader for low-level access to resources | [Resources](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#resources) |
+| `ServletConfigAware`             | Current `ServletConfig` the container runs in. Valid only in a web-aware Spring `ApplicationContext` | [Spring MVC](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/web.html#mvc) |
+| `ServletContextAware`            | Current `ServletContext` the container runs in. Valid only in a web-aware Spring `ApplicationContext` | [Spring MVC](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/web.html#mvc) |
+
+再次注意，这些接口的使用将您的代码绑定到Spring API，并且不遵循控制反转样式。因此，它们被推荐用于需要编程访问容器的基础设施bean。
+
+## 1.7 Bean定义继承
+
+一个bean定义可以包含很多配置信息，包括构造函数参数，属性值和特定于容器的信息，如初始化方法，静态工厂方法名称等等。子bean定义继承父定义的配置数据。子定义可以覆盖一些值，或者根据需要添加其他值。使用父和子bean定义可以节省大量的代码。实际上，这是一种模板形式
+
+如果以编程方式使用ApplicationContext接口，则子Bean定义由ChildBeanDefinition类表示。大多数用户在这个级别上不使用它们，而是用类似ClassPathXmlApplicationContext的方式声明性地配置bean定义。当使用基于XML的配置元数据时，通过使用parent属性指定子bean定义，并指定父bean作为此属性的值。
+
+```xml
+<bean id="inheritedTestBean" abstract="true"
+                class="org.springframework.beans.TestBean">
+        <property name="name" value="parent"/>
+        <property name="age" value="1"/>
+</bean>
+
+<bean id="inheritsWithDifferentClass"
+                class="org.springframework.beans.DerivedTestBean"
+                parent="inheritedTestBean" init-method="initialize">
+        <property name="name" value="override"/>
+        <!-- the age property value of 1 will be inherited from parent -->
+</bean>
+```
+
+如果没有指定子Bean定义，子bean定义将使用父定义中的bean类，但也可以覆盖它。在后一种情况下，子bean类必须与父bean兼容，也就是说，它必须接受父bean的属性值。
+
+子bean定义继承了父级的scope，构造函数参数值，属性值和方法重写，并且可以添加新的值。您指定的任何scope，初始化方法，销毁方法和/或静态工厂方法设置都将覆盖相应的父级设置。
+
+其余的设置总是从子定义中获取：*depends on*, *autowire mode*, *dependency check*, *singleton*, *lazy init*
+
+上例通过使用abstract属性将父bean定义明确地标记为抽象。如果父定义没有指定一个类，那么显式地标记父bean定义为抽象的是必需的，如下所示：
+
+```xml
+<bean id="inheritedTestBeanWithoutClass" abstract="true">
+        <property name="name" value="parent"/>
+        <property name="age" value="1"/>
+</bean>
+
+<bean id="inheritsWithClass" class="org.springframework.beans.DerivedTestBean"
+                parent="inheritedTestBeanWithoutClass" init-method="initialize">
+        <property name="name" value="override"/>
+        <!-- age will inherit the value of 1 from the parent bean definition-->
+</bean>
+```
+
+父bean不能被自己实例化，因为它是不完整的，而且它也被显式地标记为抽象的。当定义像这样抽象时，它只能用作一个纯粹的模板bean定义，作为子定义的父定义。试图单独使用这样一个抽象的父bean，通过引用它作为另一个bean的ref属性，或者使用父bean id进行显式的getBean（）调用，将返回一个错误。同样，容器的内部preInstantiateSingletons（）方法也会忽略定义为抽象的bean定义。
+
+```
+ApplicationContext默认预先实例化所有的singletons 。因此，如果你有一个（父）bean定义，你打算只用作模板，并且这个定义指定了一个类，那么重要的是（至少对于单例bean），你必须确保将abstract属性设置为true ，否则应用程序上下文将实际（尝试）预先实例化抽象bean。
+```
