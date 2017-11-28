@@ -2999,3 +2999,91 @@ public class JpaMovieFinder implements MovieFinder {
 }
 ```
 
+要自动检测这些类并注册相应的bean，需要将@ComponentScan添加到您的@Configuration类，其中basePackages属性是这两个类的公共父包。 （或者，您可以指定包含每个类的父包的以逗号/分号/空格分隔的列表。）
+
+```java
+@Configuration
+@ComponentScan(basePackages = "org.example")
+public class AppConfig  {
+    ...
+}
+```
+
+```
+为简洁起见，上面也使用了注解的value属性，即@ComponentScan（“org.example”）
+```
+
+以下是使用XML的替代方法
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:component-scan base-package="org.example"/>
+
+</beans>
+```
+
+```
+使用<context：component-scan>隐式启用<context：annotation-config>的功能。当使用<context：component-scan>时，通常不需要包含<context：annotation-config>元素。
+```
+
+```
+classpath包的扫描要求类路径中存在相应的目录条目。在使用Ant构建JAR时，请确保不要激活JAR任务的files-only开关。此外，在某些环境中，类路径目录基于安全策略可能不会暴露，例如， JDK 1.7.0_45和更高版本（需要在您的清单中设置“可信库”设置;请参阅http://stackoverflow.com/questions/19394570/java-jre-7u45-breaks-classloader-getresources）上的独立应用程序。
+
+在JDK 9的模块路径（Jigsaw）中，Spring的类路径扫描一般按预期工作。但是，请确保您的组件类在module-info描述符中导出;如果你希望Spring调用类的非公共成员，请确保它们是“opened”的（即在module-info描述符中使用opens 声明而不是exports声明）。
+```
+
+此外，当您使用组件component-scan element时，AutowiredAnnotationBeanPostProcessor和CommonAnnotationBeanPostProcessor都是隐式包含的。这意味着这两个组件是自动检测和连接在一起的 - 所有这些都没有XML提供的任何bean配置元数据.
+
+```
+您可以通过将annotation-config属性的值包含为false来禁用AutowiredAnnotationBeanPostProcessor和CommonAnnotationBeanPostProcessor的注册。
+```
+
+### 1.10.4使用过滤器来自定义扫描
+
+默认情况下，使用@Component，@Repository，@Service，@Controller注解或者本身使用@Component注解的自定义注解的类是被检测的候选组件。但是，只需应用自定义过滤器即可修改和扩展此行为。将过滤器添加为@ComponentScan注解的includeFilters或excludeFilters参数（或者作为component-scan元素的include-filter或exclude-filter子元素）。每个过滤器元素都需要类型和表达式属性。下表介绍了过滤选项。
+
+| Filter Type          | Example Expression           | Description                              |
+| -------------------- | ---------------------------- | ---------------------------------------- |
+| annotation (default) | `org.example.SomeAnnotation` | An annotation to be present at the type level in target components. |
+| assignable           | `org.example.SomeClass`      | A class (or interface) that the target components are assignable to (extend/implement). |
+| aspectj              | `org.example..*Service+`     | An AspectJ type expression to be matched by the target components. |
+| regex                | `org\.example\.Default.*`    | A regex expression to be matched by the target components class names. |
+| custom               | `org.example.MyTypeFilter`   | A custom implementation of the `org.springframework.core.type .TypeFilter` interface. |
+
+以下示例显示了忽略所有@Repository注解，而是使用"stub" repositories 的配置。
+
+```java
+@Configuration
+@ComponentScan(basePackages = "org.example",
+        includeFilters = @Filter(type = FilterType.REGEX, pattern = ".*Stub.*Repository"),
+        excludeFilters = @Filter(Repository.class))
+public class AppConfig {
+    ...
+}
+```
+
+等价的XML配置
+
+```xml
+<beans>
+    <context:component-scan base-package="org.example">
+        <context:include-filter type="regex"
+                expression=".*Stub.*Repository"/>
+        <context:exclude-filter type="annotation"
+                expression="org.springframework.stereotype.Repository"/>
+    </context:component-scan>
+</beans>
+```
+
+```
+您还可以通过在注解中设置useDefaultFilters = false或者将use-default-filters =“false”设置为<component-scan />元素的属性来禁用默认过滤器。这将实际上禁用自动检测用@Component，@Repository，@Service，@Controller或@Configuration注解的类。
+```
+
