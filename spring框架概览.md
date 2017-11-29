@@ -1368,7 +1368,6 @@ public abstract class CommandManager {
 访问不同范围的目标bean的另一种方式是ObjectFactory / Provider注入点。查看Scoped beans as dependencies。
 
 感兴趣的读者也可以找到ServiceLocatorFactoryBean（在org.springframework.beans.factory.config包中）。
-
 ```
 
 #### 任意方法替换
@@ -3086,4 +3085,215 @@ public class AppConfig {
 ```
 您还可以通过在注解中设置useDefaultFilters = false或者将use-default-filters =“false”设置为<component-scan />元素的属性来禁用默认过滤器。这将实际上禁用自动检测用@Component，@Repository，@Service，@Controller或@Configuration注解的类。
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+从Spring Framework 4.3开始，您还可以声明一个类型为InjectionPoint的工厂方法参数（或其更具体的子类DependencyDescriptor），以便访问触发创建当前Bean的请求注入点。请注意，这只适用于bean实例实际创建的时候，注入已有实例的时候此注入点没有意义。因此，这个特性对prototype范围的bean来说是最有意义的。对于其他作用域，工厂方法将只能看到在给定范围内触发创建新的bean实例的注入点：例如，触发创建lazy singleton bean的依赖。在这种情况下使用提供的注入点元数据。
+
+```java
+@Component
+public class FactoryMethodComponent {
+
+    @Bean @Scope("prototype")
+    public TestBean prototypeInstance(InjectionPoint injectionPoint) {
+        return new TestBean("prototypeInstance for " + injectionPoint.getMember());
+    }
+}
+```
+
+常规Spring组件中的@Bean方法的处理方式与Spring @Configuration类中的对应方法不同。不同之处在于，@Component类不会使用CGLIB来拦截方法和字段的调用。 CGLIB代理是通过调用@Configuration类中的@Bean方法中的方法或字段来创建对依赖的bean元数据引用的手段;这种方法用普通的Java语法是不能调用的，而是通过容器来提供正常的生命周期管理和Spring bean的代理即使在通过对@Bean方法的编程调用来引用其他bean的情况下。相比之下，在普通的@Component类中调用@Bean方法中的方法或字段具有标准的Java语义，没有特别的CGLIB处理或其他约束应用。
+
+```
+您可以将@Bean方法声明为静态的，允许调用它们而不创建包含其配置的类作为实例。当定义 post-processor beans时，这是特别有意义的。 BeanFactoryPostProcessor或BeanPostProcessor类型，因为这样的bean将在容器生命周期的早期初始化，并且应该避免在那个时候触发配置的其他部分
+请注意，对静态@Bean方法的调用永远不会被容器拦截，即使是@Configuration类中的静态@bean方法也不会被（见上）所拦截。这是由于技术限制：CGLIB子类只能覆盖非静态方法。因此，直接调用另一个@Bean方法将具有标准的Java语义，结果是独立的实例直接从工厂方法本身返回。
+@Bean方法的Java语言可见性不会对Spring容器中最后的bean定义产生直接的影响。你可以自由地声明你的工厂方法，就像你在非@Configuration中看到的一样，也可以在任何地方用静态方法。然而，@Configuration类中的常规@Bean方法需要被覆盖，即不能将它们声明为private或final。
+@Bean方法也将在给定组件或配置类的基类上发现，以及在Java 8中在接口中声明的默认方法将由给定组件或配置类实现。这使得在组合复杂的配置安排方面有很大的灵活性，从Spring 4.2开始，甚至可以通过Java 8默认方法进行多重继承。
+最后，请注意，单个类可能会为同一个bean持有多个@Bean方法，这取决于运行时可用的依赖关系，可以使用多个工厂方法。这与在其他配置方案中选择“最贪婪的”构造函数或工厂方法的算法相同：在构建时将选择具有最大可满足依赖项数的变体，类似于容器在多个@Autowired构造函数之间进行选择。
+```
+
+### 1.10.6Naming autodetected components
+
+当一个组件作为扫描过程的一部分被自动检测时，它的bean名称由该扫描器已知的BeanNameGenerator策略生成。默认情况下，包含name属性值的任何Spring构造型注解（@Component，@Repository，@Service和@Controller）都会将该名称提供给相应的bean定义。
+
+如果这样的注解不包含任何name属性值或其他任何检测到的组件（例如自定义过滤器发现的那些），那么默认的bean名称生成器会返回小写形式的non-qualified类名称。例如，如果检测到以下两个组件，名称将是myMovieLister和movieFinderImpl：
+
+```java
+@Service("myMovieLister")
+public class SimpleMovieLister {
+    // ...
+}
+@Repository
+public class MovieFinderImpl implements MovieFinder {
+    // ...
+}
+```
+
+```
+如果你不想依赖默认的bean命名策略，你可以提供一个自定义的bean命名策略。首先，实现BeanNameGenerator接口，并确保包含默认的无参数构造函数。然后，在配置扫描器时提供 fully-qualified的类名称：
+```
+
+```java
+@Configuration
+@ComponentScan(basePackages = "org.example", nameGenerator = MyNameGenerator.class)
+public class AppConfig {
+    ...
+}
+```
+
+```xml
+<beans>
+    <context:component-scan base-package="org.example"
+        name-generator="org.example.MyNameGenerator" />
+</beans>
+```
+
+作为一般规则，当其他组件可能正在对其进行明确引用时，请考虑在注解中指定该名称。另一方面，只要容器负责注入，自动生成的名称就足够了。
+
+### 1.10.7. Providing a scope for autodetected components
+
+与一般的Spring管理组件一样，自动检测组件的默认和最常见的范围是singleton。但是，有时您需要一个可以通过@Scope注解来指定的不同范围。只需在注解中提供scope的name属性值：
+
+```java
+@Scope("prototype")
+@Repository
+public class MovieFinderImpl implements MovieFinder {
+    // ...
+}
+```
+
+For details on web-specific scopes, see [Request, session, application, and WebSocket scopes](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-factory-scopes-other).
+
+要为scope解析提供自定义策略，而不是依赖annotation-based的方法，请实现ScopeMetadataResolver接口，并确保包含默认的无参数构造函数。然后，在配置扫描器时提供fully-qualified的类名称：
+
+```java
+@Configuration
+@ComponentScan(basePackages = "org.example", scopeResolver = MyScopeResolver.class)
+public class AppConfig {
+    ...
+}
+```
+
+```xml
+<beans>
+    <context:component-scan base-package="org.example"
+            scope-resolver="org.example.MyScopeResolver" />
+</beans>
+```
+
+当使用某些non-singleton scope时，可能需要为作用域对象生成代理。 [Scoped beans as dependencies](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-factory-scopes-other-injection)中描述了原因。为此， component-scan 元素上有一个scoped-proxy属性。三个可能的值是：no，interfaces和targetClass。例如，以下配置将导致标准的JDK动态代理。
+
+```java
+@Configuration
+@ComponentScan(basePackages = "org.example", scopedProxy = ScopedProxyMode.INTERFACES)
+public class AppConfig {
+    ...
+}
+```
+
+```xml
+<beans>
+    <context:component-scan base-package="org.example"
+        scoped-proxy="interfaces" />
+</beans>
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
