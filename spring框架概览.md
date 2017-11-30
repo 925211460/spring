@@ -23,7 +23,7 @@ Spring框架为不同的应用程序体系结构提供了基础支持，包括�
 - JMS ([JSR 914](https://jcp.org/en/jsr/detail?id=914))
 - as well as JTA/JCA setups for transaction coordination, if necessary.
 
-Spring框架还支持依赖注入（JSR 330）和通用注释（JSR 250）规范，应用程序开发人员可以选择使用这些规范来代替Spring框架提供的Spring特定的机制。
+Spring框架还支持依赖注入（JSR 330）和通用注解（JSR 250）规范，应用程序开发人员可以选择使用这些规范来代替Spring框架提供的Spring特定的机制。
 
 今天，在Spring Boot的帮助下，应用程序以devops和云友好的方式创建，Servlet容器被嵌入并且变得微不足道。从Spring Framework 5开始，WebFlux应用程序甚至不直接使用Servlet API，而是可以在不是Servlet容器的服务器（如Netty）上运行.
 
@@ -77,11 +77,11 @@ Spring提供了几个ApplicationContext接口的实现。在独立应用程序�
 
 有关在Spring容器中使用其他形式的元数据的信息，请参阅：
 
-基于注释的配置：Spring 2.5引入了对基于注释的配置元数据的支持。
+基于注解的配置：Spring 2.5引入了对基于注解的配置元数据的支持。
 
-基于Java的配置：从Spring 3.0开始，Spring JavaConfig项目提供的许多功能成为核心Spring框架的一部分。因此，您可以使用Java而不是XML文件来定义应用程序类外部的Bean。要使用这些新功能，请参阅@Configuration，@Bean，@Import和@DependsOn注释。
+基于Java的配置：从Spring 3.0开始，Spring JavaConfig项目提供的许多功能成为核心Spring框架的一部分。因此，您可以使用Java而不是XML文件来定义应用程序类外部的Bean。要使用这些新功能，请参阅@Configuration，@Bean，@Import和@DependsOn注解。
 
-Spring的配置包含至少一个，一般是多个bean定义组成。基于XML的配置元数据将这些bean配置为顶级<beans />元素内的<bean />元素。 基于Java配置通常在@Configuration类中使用@Bean注释的方法。
+Spring的配置包含至少一个，一般是多个bean定义组成。基于XML的配置元数据将这些bean配置为顶级<beans />元素内的<bean />元素。 基于Java配置通常在@Configuration类中使用@Bean注解的方法。
 
 这些bean定义对应于组成应用程序的实际对象。通常，您可以定义服务层对象，数据访问对象（DAO），Struts Action实例等表现层对象，Hibernate SessionFactory，JMS队列等基础设施对象。通常，不会在容器中配置细粒度的域对象，因为创建和加载域对象通常是DAO和业务逻辑的责任。但是，您可以使用Spring与AspectJ的集成来配置在IoC容器控制之外创建的对象。请参阅使用AspectJ以依赖注入域对象与Spring。
 
@@ -258,7 +258,7 @@ new GroovyBeanDefinitionReader(context).loadBeanDefinitions("services.groovy", "
 
 这样的阅读器代表可以在相同的ApplicationContext上混合和匹配，如果需要，可以从不同的配置源读取bean定义。
 
-然后可以使用getBean来检索bean的实例。 ApplicationContext接口还有其他一些检索bean的方法，但理想情况下应用程序代码不应该使用它们。事实上，你的应用程序代码根本就不应该调用getBean（）方法，因此完全不依赖于Spring API。例如，Spring与Web框架的集成为各种Web框架组件（如控制器和JSF托管的Bean）提供了依赖注入，允许您通过元数据（例如自动装配注释）声明对特定Bean的依赖关系。
+然后可以使用getBean来检索bean的实例。 ApplicationContext接口还有其他一些检索bean的方法，但理想情况下应用程序代码不应该使用它们。事实上，你的应用程序代码根本就不应该调用getBean（）方法，因此完全不依赖于Spring API。例如，Spring与Web框架的集成为各种Web框架组件（如控制器和JSF托管的Bean）提供了依赖注入，允许您通过元数据（例如自动装配注解）声明对特定Bean的依赖关系。
 
 ## 1.3 Bean概述
 
@@ -320,7 +320,7 @@ Spring IoC容器管理一个或多个bean。这些bean是使用您提供给容�
 
 现在，每个组件和主应用程序都可以通过唯一的名称引用dataSource，并保证不与其他任何定义冲突（有效地创建名称空间），但它们引用同一个bean。
 
-如果您正在使用Java配置，则可以使用@Bean注释来提供别名，请参阅[Using the @Bean annotation](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-java-bean-annotation)以获取详细信息。
+如果您正在使用Java配置，则可以使用@Bean注解来提供别名，请参阅[Using the @Bean annotation](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-java-bean-annotation)以获取详细信息。
 
 ### 1.3.2实例化bean
 
@@ -446,7 +446,7 @@ DI存在两种主要的变体，[Constructor-based dependency injection](https:/
 
 #### 基于构造函数的依赖注入
 
-基于构造器的DI通过容器调用具有多个参数的构造器来完成，每个参数表示一个依赖关系。调用一个具有特定参数的静态工厂方法来构造这个bean几乎是等价的，这个讨论对于构造函数或者静态工厂方法的参数一样的。以下示例显示了只能通过构造函数注入进行依赖注入的类。请注意，这个类没有什么特别之处，它是一个POJO，它不依赖容器特定的接口，基类或注释。、
+基于构造器的DI通过容器调用具有多个参数的构造器来完成，每个参数表示一个依赖关系。调用一个具有特定参数的静态工厂方法来构造这个bean几乎是等价的，这个讨论对于构造函数或者静态工厂方法的参数一样的。以下示例显示了只能通过构造函数注入进行依赖注入的类。请注意，这个类没有什么特别之处，它是一个POJO，它不依赖容器特定的接口，基类或注解。、
 
 ```java
 public class SimpleMovieLister {
@@ -548,7 +548,7 @@ public class ExampleBean {
 </bean>
 ```
 
-请记住，为了使这项工作脱离您的代码，必须使用调试标志进行编译，以便Spring可以从构造函数中查找参数名称。如果你不能用调试标志编译你的代码（或者不想），你可以使用@ConstructorProperties JDK注释来明确地指定你的构造函数参数。示例类将如下所示：
+请记住，为了使这项工作脱离您的代码，必须使用调试标志进行编译，以便Spring可以从构造函数中查找参数名称。如果你不能用调试标志编译你的代码（或者不想），你可以使用@ConstructorProperties JDK注解来明确地指定你的构造函数参数。示例类将如下所示：
 
 ```java
 package examples;
@@ -569,7 +569,7 @@ public class ExampleBean {
 
 在调用无参数构造函数或无参数静态工厂方法来实例化您的bean之后，基于Setter的依赖注入通过容器调用bean上的setter方法完成注入。
 
-以下示例显示了一个只能使用纯setter注入进行依赖注入的类。这个类是传统的Java。这是一个POJO，它不依赖于容器特定的接口，基类或注释。
+以下示例显示了一个只能使用纯setter注入进行依赖注入的类。这个类是传统的Java。这是一个POJO，它不依赖于容器特定的接口，基类或注解。
 
 ```java
 public class SimpleMovieLister {
@@ -586,7 +586,7 @@ public class SimpleMovieLister {
 }
 ```
 
-ApplicationContext支持它所管理的bean的基于构造函数和基于setter的依赖注入。它也支持通过构造方法注入依赖之后，基于setter的依赖注入。您可以以BeanDefinition的形式配置依赖项，您可以使用它与PropertyEditor实例一起使用，将属性从一种格式转换为另一种格式。然而，大多数Spring用户不直接使用这些类（即以编程方式），而是使用XML bean定义，带注释的组件（即用@Component，@Controller等注释的类）或基于Java的@Configuration类的@Bean方法。然后将这些源内部转换为BeanDefinition的实例，并用于加载整个Spring IoC容器实例。
+ApplicationContext支持它所管理的bean的基于构造函数和基于setter的依赖注入。它也支持通过构造方法注入依赖之后，基于setter的依赖注入。您可以以BeanDefinition的形式配置依赖项，您可以使用它与PropertyEditor实例一起使用，将属性从一种格式转换为另一种格式。然而，大多数Spring用户不直接使用这些类（即以编程方式），而是使用XML bean定义，带注解的组件（即用@Component，@Controller等注解的类）或基于Java的@Configuration类的@Bean方法。然后将这些源内部转换为BeanDefinition的实例，并用于加载整个Spring IoC容器实例。
 
 ```
 使用构造器注入还是setter方式注入
@@ -605,7 +605,7 @@ Setter注入主要只应用于可选的依赖关系，这种依赖可以在类�
 
 容器执行bean依赖解析如下：
 
-- ApplicationContext使用描述所有Bean的配置元数据创建和初始化。配置元数据可以通过XML，Java代码或注释来指定。	
+- ApplicationContext使用描述所有Bean的配置元数据创建和初始化。配置元数据可以通过XML，Java代码或注解来指定。	
 - 对于每个bean，它的依赖关系以属性，构造函数参数或静态工厂方法的参数的形式表示。当bean被实际创建时，这些依赖被提供给bean。
 - 每个属性或构造函数参数都是要设置的值的实际定义，或者是对容器中另一个bean的引用。
 - 每个属性或构造函数参数的值都从指定的格式转换为该属性或构造函数参数的实际类型。默认情况下，Spring可以将以字符串格式提供的值转换为所有内置类型，例如int，long，String，boolean等。
@@ -1222,11 +1222,11 @@ Spring容器可以自动联系合作bean之间的关系。您可以允许Spring�
 - 放弃autowiring以支持显式指定依赖关系。
 - 通过将autowire-candidate属性设置为false，避免autowiring  bean定义，如下一节所述。
 - 指定单个bean定义作为主要候选者，通过将其<bean />元素的`primary` 属性设置为true。
-- 如 [Annotation-based container configuration](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-annotation-config).中所述，通过并使用基于注释的配置实现更加细粒度的控制。
+- 如 [Annotation-based container configuration](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-annotation-config).中所述，通过并使用基于注解的配置实现更加细粒度的控制。
 
 #### 从自动装配中排除一个bean
 
-在每个bean的基础上，您可以从autowiring中排除一个bean。在Spring的XML格式中，将<bean />元素的autowire-candidate属性设置为false;该容器使该特定的bean定义对autowiring基础组件设施不可用（包括诸如@Autowired之类的注释样式配置）。
+在每个bean的基础上，您可以从autowiring中排除一个bean。在Spring的XML格式中，将<bean />元素的autowire-candidate属性设置为false;该容器使该特定的bean定义对autowiring基础组件设施不可用（包括诸如@Autowired之类的注解样式配置）。
 
 *autowire-candidate属性仅影响type-based autowiring。它不会影响by name的显式引用，即使指定的bean的autowire-candidate属性为false，也可以被自动注入。因此，如果名称匹配，by name autowiring将注入一个bean。*
 
@@ -1330,7 +1330,7 @@ public abstract class CommandManager {
 
 标识为commandManager的bean在需要myCommand bean的新实例时调用自己的方法createCommand（）。您必须小心地将myCommand bean作为原型部署，如果这实际上是需要的话。如果它是[singleton](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-scopes-singleton)，则每次返回myCommand bean的同一个实例。
 
-或者，在基于注释的组件模型中，您可以通过@Lookup注释声明一个查找方法：
+或者，在基于注解的组件模型中，您可以通过@Lookup注解声明一个查找方法：
 
 ```java
 public abstract class CommandManager {
@@ -1485,7 +1485,7 @@ DispatcherServlet，RequestContextListener和RequestContextFilter的作用都完
 
 Spring容器对每个HTTP请求都使用loginAction bean定义来创建新的LoginAction bean的新实例。也就是说，loginAction bean的作用域是HTTP请求级别。您可以根据需要更改所创建实例的内部状态，因为从同一个loginAction bean定义创建的其他实例将不会看到这些状态变化;他们对单独的request是没有关系的。当请求完成处理时，作用于该请求的bean将被丢弃。、
 
-使用注释驱动的组件或Java Config时，可以使用@RequestScope注释将组件分配到请求范围。
+使用注解驱动的组件或Java Config时，可以使用@RequestScope注解将组件分配到请求范围。
 
 ```java
 @RequestScope
@@ -1505,7 +1505,7 @@ public class LoginAction {
 
 Spring容器在单个HTTP session的生命周期中使用userPreferences bean定义来创建UserPreferences bean的新实例。换句话说，userPreferences bean在HTTP session级别有效。与request bean一样，您可以根据需要更改所创建实例的内部状态，因为使用同一userPreferences bean定义创建的实例的其他HTTP Session实例看不到这些更改，因为它们对于每个HTTP会话是独立的。当HTTP会话最终被丢弃时，作用于该特定HTTP会话的bean也被丢弃。
 
-使用注释驱动组件或Java Config时，可以使用@SessionScope注释将组件分配给会话作用域。
+使用注解驱动组件或Java Config时，可以使用@SessionScope注解将组件分配给会话作用域。
 
 ```java
 @SessionScope
@@ -1525,7 +1525,7 @@ public class UserPreferences {
 
 Spring容器对整个Web应用程序使用appPreferences bean定义只创建一个AppPreferences bean的新实例。也就是说，appPreferences bean的作用域在ServletContext级别，作为常规的ServletContext属性存储。这有点类似于Spring单例bean，但在两个重要方面有所不同：它对每个ServletContext只有一个，而不是对每个Spring的“ApplicationContext”只有一个（在任何给定的Web应用程序中可能有几个），它实际上是暴露的，因此作为ServletContext属性可见。
 
-使用注释驱动组件或Java Config时，可以使用@ApplicationScope注释将组件分配给应用程序范围。
+使用注解驱动组件或Java Config时，可以使用@ApplicationScope注解将组件分配给应用程序范围。
 
 ```java
 @ApplicationScope
@@ -1632,8 +1632,8 @@ For more detailed information about choosing class-based or interface-based prox
 
 为了影响容器对bean的生命周期的管理，bean可以实现Spring InitializingBean和DisposableBean接口。容器为前者调用afterPropertiesSet（），后者调用destroy（）来允许bean在初始化和销毁bean时执行某些操作。
 
-*JSR-250 @PostConstruct和@PreDestroy注释通常被认为是在现代Spring应用程序中接收生命周期回调的最佳实践。使用这些注释意味着你的bean没有耦合到Spring特定的接口。有关详细信息，请参阅 [@PostConstruct and @PreDestroy](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-postconstruct-and-predestroy-annotations).*
-*如果您不想使用JSR-250注释，但是仍然想要移除耦合，请考虑使用对象定义元数据中的init-method和destroy-method。*
+*JSR-250 @PostConstruct和@PreDestroy注解通常被认为是在现代Spring应用程序中接收生命周期回调的最佳实践。使用这些注解意味着你的bean没有耦合到Spring特定的接口。有关详细信息，请参阅 [@PostConstruct and @PreDestroy](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-postconstruct-and-predestroy-annotations).*
+*如果您不想使用JSR-250注解，但是仍然想要移除耦合，请考虑使用对象定义元数据中的init-method和destroy-method。*
 
 在内部，Spring框架使用BeanPostProcessor实现来处理它可以找到的任何回调接口，并调用适当的方法。如果您需要自定义功能或其他生命周期行为，Spring不提供开箱即用的功能，您可以自己实现BeanPostProcessor。有关更多信息，请参阅 [Container Extension Points](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-extension)。
 
@@ -1649,7 +1649,7 @@ org.springframework.beans.factory.InitializingBean接口允许bean在所有必�
 void afterPropertiesSet() throws Exception;
 ```
 
-建议您不要使用InitializingBean接口，因为它将代码耦合到Spring。替代方案是使用[`@PostConstruct`](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-postconstruct-and-predestroy-annotations)注释或指定一个POJO初始化方法。对于基于XML的配置元数据，可以使用init-method属性指定具有void no-argument 的方法的名称。使用Java配置，您可以使用@Bean的initMethod属性，请参阅接收生命周期回调。例如，以下内容：
+建议您不要使用InitializingBean接口，因为它将代码耦合到Spring。替代方案是使用[`@PostConstruct`](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-postconstruct-and-predestroy-annotations)注解或指定一个POJO初始化方法。对于基于XML的配置元数据，可以使用init-method属性指定具有void no-argument 的方法的名称。使用Java配置，您可以使用@Bean的initMethod属性，请参阅接收生命周期回调。例如，以下内容：
 
 ```xml
 <bean id="exampleInitBean" class="examples.ExampleBean" init-method="init"/>
@@ -1689,7 +1689,7 @@ public class AnotherExampleBean implements InitializingBean {
 void destroy() throws Exception;
 ```
 
-建议您不要使用DisposableBean回调接口，因为它不必要地将代码耦合到Spring。替代方案是在回调方法上使用@PreDestroy注释或指定bean定义支持的通用方法。使用基于XML的配置元数据时，可以使用<bean />上的destroy-method属性指定。使用Java配置，您可以使用@Bean的destroyMethod属性，请参阅[Receiving lifecycle callbacks](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-java-lifecycle-callbacks).。例如，下面的定义：
+建议您不要使用DisposableBean回调接口，因为它不必要地将代码耦合到Spring。替代方案是在回调方法上使用@PreDestroy注解或指定bean定义支持的通用方法。使用基于XML的配置元数据时，可以使用<bean />上的destroy-method属性指定。使用Java配置，您可以使用@Bean的destroyMethod属性，请参阅[Receiving lifecycle callbacks](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-java-lifecycle-callbacks).。例如，下面的定义：
 
 ```xml
 <bean id="exampleInitBean" class="examples.ExampleBean" destroy-method="cleanup"/>
@@ -1769,7 +1769,7 @@ Spring容器保证了一个配置好的初始化回调函数在bean被提供了�
 
 #### 联合生命周期机制
 
-从Spring 2.5开始，您有三个控制bean生命周期行为的选项：InitializingBean和DisposableBean回调接口;自定义init（）和destroy（）方法;和@PostConstruct和@PreDestroy注释。你可以结合这些机制来控制给定的bean。
+从Spring 2.5开始，您有三个控制bean生命周期行为的选项：InitializingBean和DisposableBean回调接口;自定义init（）和destroy（）方法;和@PostConstruct和@PreDestroy注解。你可以结合这些机制来控制给定的bean。
 
 为同一个bean配置多个生命周期机制，使用不同的初始化方法，如下所示：
 
@@ -1894,7 +1894,7 @@ public interface ApplicationContextAware {
 
 因此，bean可以以编程方式操作创建它们的ApplicationContext，通过ApplicationContext接口或通过将对ApplicationContex的引用强制转换为此接口的已知子类（如ConfigurableApplicationContext），这些子类具有其他的功能。一个用途是对其他bean的程序化获取。有时这种能力是有用的;然而，一般来说，你应该避免它，因为它将代码耦合到Spring，并且不遵循控制反转，控制反转中协作者作为属性被提供给bean。 ApplicationContext的其他方法提供对文件资源的访问，发布应用程序事件和访问MessageSource。这些附加功能在 [Additional capabilities of the ApplicationContext](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#context-introduction)进行了介绍。
 
-从Spring 2.5开始，自动装配是获得ApplicationContext引用的另一种方法。 “传统”构造函数和byType自动装配模式（如 [Autowiring collaborators](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-autowire)中所述）可以分别为构造函数参数或setter方法参数提供ApplicationContext类型的依赖。为了获得更多的灵活性，包括自动装配字段和多个参数方法的功能，请使用新的基于注释的自动装配功能。如果这样做的话，ApplicationContext被自动装入一个字段，构造函数参数或方法参数，如果所涉及的字段，构造函数或方法携带@Autowired注释，则该参数将期望ApplicationContext类型。有关更多信息，请参阅[@Autowired](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-autowired-annotation)。
+从Spring 2.5开始，自动装配是获得ApplicationContext引用的另一种方法。 “传统”构造函数和byType自动装配模式（如 [Autowiring collaborators](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-autowire)中所述）可以分别为构造函数参数或setter方法参数提供ApplicationContext类型的依赖。为了获得更多的灵活性，包括自动装配字段和多个参数方法的功能，请使用新的基于注解的自动装配功能。如果这样做的话，ApplicationContext被自动装入一个字段，构造函数参数或方法参数，如果所涉及的字段，构造函数或方法携带@Autowired注解，则该参数将期望ApplicationContext类型。有关更多信息，请参阅[@Autowired](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-autowired-annotation)。
 
 当一个ApplicationContext创建一个实现了org.springframework.beans.factory.BeanNameAware接口的类时，这个类包含了一个在其关联的对象定义中定义的名字的引用。
 
@@ -2089,7 +2089,7 @@ org.springframework.scripting.groovy.GroovyMessenger@272961
 
 #### 示例：RequiredAnnotationBeanPostProcessor
 
-将回调接口或注释与自定义BeanPostProcessor实现结合使用是扩展Spring IoC容器的常用方法。 Spring的RequiredAnnotationBeanPostProcessor就是一个例子，它是Spring发行版的一个BeanPostProcessor实现，它确保用（任意）注释标记的bean的属性确实被（配置为）依赖注入一个值。
+将回调接口或注解与自定义BeanPostProcessor实现结合使用是扩展Spring IoC容器的常用方法。 Spring的RequiredAnnotationBeanPostProcessor就是一个例子，它是Spring发行版的一个BeanPostProcessor实现，它确保用（任意）注解标记的bean的属性确实被（配置为）依赖注入一个值。
 
 ### 1.8.2。使用BeanFactoryPostProcessor定制配置元数据
 
@@ -2229,11 +2229,11 @@ FactoryBean的概念和接口被用在Spring框架的许多地方。 FactoryBean
 
 注解是否比XML更好地配置Spring？
 
-引入基于注释的配置引发了这种方法是否比XML更好的讨论。每种方法都有其优缺点，通常由开发者决定哪种策略更适合他们。由于它们被定义的方式，注释在其声明中提供了很多的上下文，从而导致更短，更简洁的配置。但是，XML擅长于连接组件而不涉及其源代码或重新编译它们。一些开发人员更喜欢接近源代码的配置，而另一些开发人员则认为注释类不再是POJO，而且配置变得分散，难以控制。
+引入基于注解的配置引发了这种方法是否比XML更好的讨论。每种方法都有其优缺点，通常由开发者决定哪种策略更适合他们。由于它们被定义的方式，注解在其声明中提供了很多的上下文，从而导致更短，更简洁的配置。但是，XML擅长于连接组件而不涉及其源代码或重新编译它们。一些开发人员更喜欢接近源代码的配置，而另一些开发人员则认为注解类不再是POJO，而且配置变得分散，难以控制。
 
-无论选择什么，Spring都可以兼容这两种风格，甚至可以将它们混合在一起。值得指出的是，通过[JavaConfig](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-java) 选项，Spring允许以非侵入方式使用注释，而不涉及目标组件的源代码，而在工具方面，[Spring Tool Suite](https://spring.io/tools/sts).支持所有配置样式。
+无论选择什么，Spring都可以兼容这两种风格，甚至可以将它们混合在一起。值得指出的是，通过[JavaConfig](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-java) 选项，Spring允许以非侵入方式使用注解，而不涉及目标组件的源代码，而在工具方面，[Spring Tool Suite](https://spring.io/tools/sts).支持所有配置样式。
 
-XML配置的替代方法由基于注释的配置提供，该配置依赖字节码元数据来连接组件而不是角括号声明。开发人员不是使用XML来描述bean依赖，而是通过在相关的类，方法或字段声明中使用注释将配置移动到组件类本身中。如 [Example: The RequiredAnnotationBeanPostProcessor](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-extension-bpp-examples-rabpp)所述：将BeanPostProcessor与注释一起使用是扩展Spring IoC容器的常用方法。例如，Spring 2.0引入了用@Required注解强制实现所需属性注入的可能性。 Spring 2.5使得遵循相同的通用方法来驱动Spring的依赖注入成为可能。从本质上讲，@ Aututired注释提供了与[Autowiring collaborators](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-autowire)中描述的相同的功能，但具有更细致的控制和更广泛的适用性。 Spring 2.5还增加了对@PostConstruct和@PreDestroy等JSR-250注释的支持。 Spring 3.0增加了对javax.inject包（例如@Inject和@Named）中包含的JSR-330（Dependency Injection for Java）注释的支持。关于这些注释的细节可以参考 [relevant section](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-standard-annotations).。
+XML配置的替代方法由基于注解的配置提供，该配置依赖字节码元数据来连接组件而不是角括号声明。开发人员不是使用XML来描述bean依赖，而是通过在相关的类，方法或字段声明中使用注解将配置移动到组件类本身中。如 [Example: The RequiredAnnotationBeanPostProcessor](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-extension-bpp-examples-rabpp)所述：将BeanPostProcessor与注解一起使用是扩展Spring IoC容器的常用方法。例如，Spring 2.0引入了用@Required注解强制实现所需属性注入的可能性。 Spring 2.5使得遵循相同的通用方法来驱动Spring的依赖注入成为可能。从本质上讲，@ Aututired注解提供了与[Autowiring collaborators](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-factory-autowire)中描述的相同的功能，但具有更细致的控制和更广泛的适用性。 Spring 2.5还增加了对@PostConstruct和@PreDestroy等JSR-250注解的支持。 Spring 3.0增加了对javax.inject包（例如@Inject和@Named）中包含的JSR-330（Dependency Injection for Java）注解的支持。关于这些注解的细节可以参考 [relevant section](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-standard-annotations).。
 
 ```
 注入注入是在XML注入之前执行的，因此，如果属性通过两种方式都配置了，则后者的配置将覆盖前者的属性。
@@ -2284,7 +2284,7 @@ public class SimpleMovieLister {
 
 在下面的例子中，JSR 330的@Inject注解可以用来代替Spring的@Autowired注解。在[here](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-standard-annotations) 看到更多的细节。
 
-您可以将@Autowired注释应用于构造函数
+您可以将@Autowired注解应用于构造函数
 
 ```xml
 public class MovieRecommender {
@@ -2300,9 +2300,9 @@ public class MovieRecommender {
 }
 ```
 
-从Spring Framework 4.3开始，如果目标bean只定义了一个构造函数，那么这个构造函数的@Autowired注释就不再需要了。但是，如果有几个构造函数可用，则必须至少注明一个构造函数来告诉容器使用哪一个。
+从Spring Framework 4.3开始，如果目标bean只定义了一个构造函数，那么这个构造函数的@Autowired注解就不再需要了。但是，如果有几个构造函数可用，则必须至少注明一个构造函数来告诉容器使用哪一个。
 
-正如所料，您也可以将@Autowired注释应用于“传统”setter方法
+正如所料，您也可以将@Autowired注解应用于“传统”setter方法
 
 ```java
 public class SimpleMovieLister {
@@ -2318,7 +2318,7 @@ public class SimpleMovieLister {
 }
 ```
 
-您也可以将注释应用于具有任意名称和/或多个参数的方法：
+您也可以将注解应用于具有任意名称和/或多个参数的方法：
 
 ```java
 public class MovieRecommender {
@@ -2392,7 +2392,7 @@ public class MovieRecommender {
 }
 ```
 
-您的bean可以实现org.springframework.core.Ordered接口，或者如果希望数组或列表中的项目按特定顺序排序，则可以使用@Order或标准@Priority注释。
+您的bean可以实现org.springframework.core.Ordered接口，或者如果希望数组或列表中的项目按特定顺序排序，则可以使用@Order或标准@Priority注解。
 
 甚至map也可以自动装配，只要预期的键类型是字符串。 Map值将包含期望类型的所有bean，并且键将包含相应的bean名称.
 
@@ -2447,7 +2447,7 @@ public class MovieRecommender {
 ```
 
 ```
-@Autowired，@Inject，@Resource和@Value注解由Spring BeanPostProcessor实现处理，这意味着您不能在自己的BeanPostProcessor或BeanFactoryPostProcessor类型（如果有）中应用这些注释。这些类型必须通过XML或使用Spring @Bean方法明确依赖。
+@Autowired，@Inject，@Resource和@Value注解由Spring BeanPostProcessor实现处理，这意味着您不能在自己的BeanPostProcessor或BeanFactoryPostProcessor类型（如果有）中应用这些注解。这些类型必须通过XML或使用Spring @Bean方法明确依赖。
 ```
 ### 1.9.3使用@Primary细粒度控制基于注解的自动装配
 
@@ -2509,9 +2509,9 @@ public class MovieRecommender {
 </beans>
 ```
 
-### 1.9.4使用@Qualifier对基于注释的自动装配进行细粒度控制
+### 1.9.4使用@Qualifier对基于注解的自动装配进行细粒度控制
 
-当根据类型进行自动转配时，并且有多个候选依赖，如果多个候选依赖中有一个能够确定则使用@Primary是一种有效的方法。当需要对选择自动装配过程进行更多的控制时，可以使用Spring的@Qualifier注释。您可以将限定符值与特定参数相关联，缩小匹配类型的集合，以便为每个参数选择特定的bean。在最简单的情况下，@Qualifier参数值可以是一个简单的描述性的值：
+当根据类型进行自动转配时，并且有多个候选依赖，如果多个候选依赖中有一个能够确定则使用@Primary是一种有效的方法。当需要对选择自动装配过程进行更多的控制时，可以使用Spring的@Qualifier注解。您可以将限定符值与特定参数相关联，缩小匹配类型的集合，以便为每个参数选择特定的bean。在最简单的情况下，@Qualifier参数值可以是一个简单的描述性的值：
 
 ```java
 public class MovieRecommender {
@@ -2577,17 +2577,17 @@ public class MovieRecommender {
 
 对于回退匹配，bean名称被视为默认限定符值。因此，您可以使用id“main”而不是嵌套的qualifier元素来定义bean，也能得到相同的匹配结果。但是，虽然可以使用这个约定来通过名称来引用特定的bean，但@Autowired根本上是在根据类型驱动注入的前提下再根据限定符的值来注入依赖的。这意味着限定符值（即使是bean名称后备）首先要在符合匹配的类型的bean中再限定依赖。良好的限定符值是“main”或“EMEA”或“persistent”，表示与bean id无关的特定组件的特征，如前面的例子在匿名bean定义的情况下可以自动生成。
 
-限定符也适用于类型的集合，如上所述，例如，Set <MovieCatalog>。在这种情况下，根据声明的限定符将所有匹配的bean注入集合。这意味着限定词不一定是唯一的;他们只是构成过滤标准。例如，您可以使用相同的限定符值“action”定义多个MovieCatalog bean，所有这些都将被注入到由@Qualifier（“action”）注释的Set <MovieCatalog>中。
+限定符也适用于类型的集合，如上所述，例如，Set <MovieCatalog>。在这种情况下，根据声明的限定符将所有匹配的bean注入集合。这意味着限定词不一定是唯一的;他们只是构成过滤标准。例如，您可以使用相同的限定符值“action”定义多个MovieCatalog bean，所有这些都将被注入到由@Qualifier（“action”）注解的Set <MovieCatalog>中。
 
 ```
-如果您打算按名称驱动注解注入，则不要使用@Autowired，即使在技术上能够通过@Qualifier值引用bean名称实现。推荐使用JSR-250 @Resource注释，它的语义定义是标识一个特定的目标组件通过它的唯一名称，组件的类型与匹配过程无关。 @Autowired具有相当不同的语义：在按类型选择候选bean之后，然后才根据指定的字符串限定符值在这些类型选择的候选者选择。
+如果您打算按名称驱动注解注入，则不要使用@Autowired，即使在技术上能够通过@Qualifier值引用bean名称实现。推荐使用JSR-250 @Resource注解，它的语义定义是标识一个特定的目标组件通过它的唯一名称，组件的类型与匹配过程无关。 @Autowired具有相当不同的语义：在按类型选择候选bean之后，然后才根据指定的字符串限定符值在这些类型选择的候选者选择。
 对于自己被定义为collection/map或数组类型的bean，@Resource是一个很好的解决方案，它通过唯一名称引用特定的集合或数组bean。也就是说，从4.3开始，只要元素类型信息保存在@Bean返回类型签名或集合继承层次结构中，就可以通过Spring的@Autowired类型匹配算法来匹配collection/map和数组类型。在这种情况下，可以使用限定符值在同一类型的集合中进行选择，如前一段所述。
 从4.3开始，@Autowired也考虑自引用注入，即引用当前注入的bean。请注意，自我注入是一个后备;对其他组件的正常依赖关系始终具有优先权。从这个意义上说，自我引用不参与正常的候选依赖选择，因此尤其不是主要的;相反，它们总是最低优先。在实践中，仅使用自引用作为最后的手段，例如，用于通过bean的事务代理来调用同一实例上的其他方法：考虑在这种情况下将受影响的方法分解为单独的委托bean。或者，使用@Resource可以通过当前它的唯一名称获取代理返回到当前bean。
-@Autowired适用于字段，构造函数和多参数方法，允许通过qualifier 注释在参数级缩小依赖选择范围。相比之下，@Resource仅支持的字段和具有单个参数的setter方法。因此，如果注入目标是构造函数或多参数方法，则坚持使用限定符。
+@Autowired适用于字段，构造函数和多参数方法，允许通过qualifier 注解在参数级缩小依赖选择范围。相比之下，@Resource仅支持的字段和具有单个参数的setter方法。因此，如果注入目标是构造函数或多参数方法，则坚持使用限定符。
 
 ```
 
-您可以创建自己的自定义限定符注解。只需定义一个注释并在您的定义中提供@Qualifier注解：
+您可以创建自己的自定义限定符注解。只需定义一个注解并在您的定义中提供@Qualifier注解：
 
 ```java
 @Target({ElementType.FIELD, ElementType.PARAMETER})
@@ -2619,7 +2619,7 @@ public class MovieRecommender {
 }
 ```
 
-接下来，提供候选bean定义的信息。您可以将<qualifier />标记添加为<bean />标记的子元素，然后指定type和value以匹配您的自定义限定符注解。该type与注释的完全限定的类名相匹配。或者，如果不存在相互冲突名称的风险，则可以使用短名称。下面的例子演示了这两种方式。
+接下来，提供候选bean定义的信息。您可以将<qualifier />标记添加为<bean />标记的子元素，然后指定type和value以匹配您的自定义限定符注解。该type与注解的完全限定的类名相匹配。或者，如果不存在相互冲突名称的风险，则可以使用短名称。下面的例子演示了这两种方式。
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -2648,9 +2648,9 @@ public class MovieRecommender {
 </beans>
 ```
 
-在[Classpath scanning and managed components](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-classpath-scanning)中，您将看到一个基于注释的替代方法来提供XML中的限定符元数据。具体来说，请参阅 [Providing qualifier metadata with annotations](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-scanning-qualifiers)。
+在[Classpath scanning and managed components](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-classpath-scanning)中，您将看到一个基于注解的替代方法来提供XML中的限定符元数据。具体来说，请参阅 [Providing qualifier metadata with annotations](https://docs.spring.io/spring/docs/5.0.1.RELEASE/spring-framework-reference/core.html#beans-scanning-qualifiers)。
 
-在某些情况下，使用没有value的注释可能就足够了。当注解用于更通用的用途时，这可能是有用的，并且可以应用于多种不同类型的依赖关系。例如，您可能会提供一个*offline*catalog ，在没有Internet连接可用时将被搜索。首先定义简单的注释：
+在某些情况下，使用没有value的注解可能就足够了。当注解用于更通用的用途时，这可能是有用的，并且可以应用于多种不同类型的依赖关系。例如，您可能会提供一个*offline*catalog ，在没有Internet连接可用时将被搜索。首先定义简单的注解：
 
 ```java
 @Target({ElementType.FIELD, ElementType.PARAMETER})
@@ -2661,7 +2661,7 @@ public @interface Offline {
 }
 ```
 
-加注释到将要被自动装配的字段或属性
+加注解到将要被自动装配的字段或属性
 
 ```java
 public class MovieRecommender {
@@ -2817,7 +2817,7 @@ private List<Store<Integer>> s;
 
 ### 1.9.6 CustomAutowireConfigurer
 
-CustomAutowireConfigurer是一个BeanFactoryPostProcessor，它使您能够注册自己的自定义限定符注解类型，即使它们没有用Spring的@Qualifier注释。
+CustomAutowireConfigurer是一个BeanFactoryPostProcessor，它使您能够注册自己的自定义限定符注解类型，即使它们没有用Spring的@Qualifier注解。
 
 ```xml
 <bean id="customAutowireConfigurer"
@@ -2902,7 +2902,7 @@ CommonAnnotationBeanPostProcessor不仅可以识别@Resource注解，还可以�
 
 ## 1.10. Classpath scanning and managed components
 
-本章中的大多数示例都使用XML来指定在Spring容器中生成每个BeanDefinition的配置元数据。上一节（基于注释的容器配置）演示了如何通过源代码级注解提供大量的配置元数据。但是，即使在这些示例中，“基本”bean定义也是在XML文件中明确定义的，而注解仅驱动依赖注入。本节介绍通过扫描类路径隐式检测候选组件的选项。候选组件是与过滤条件相匹配的类，并具有在容器中注册的相应的bean定义。这消除了使用XML来执行bean注册的需要;相反，您可以使用注释（例如@Component），AspectJ类型表达式或您自己的自定义过滤条件来选择哪些类将具有注册到容器的bean定义。
+本章中的大多数示例都使用XML来指定在Spring容器中生成每个BeanDefinition的配置元数据。上一节（基于注解的容器配置）演示了如何通过源代码级注解提供大量的配置元数据。但是，即使在这些示例中，“基本”bean定义也是在XML文件中明确定义的，而注解仅驱动依赖注入。本节介绍通过扫描类路径隐式检测候选组件的选项。候选组件是与过滤条件相匹配的类，并具有在容器中注册的相应的bean定义。这消除了使用XML来执行bean注册的需要;相反，您可以使用注解（例如@Component），AspectJ类型表达式或您自己的自定义过滤条件来选择哪些类将具有注册到容器的bean定义。
 
 ```
 从Spring 3.0开始，Spring JavaConfig项目提供的许多功能都是核心Spring框架的一部分。这使您可以使用Java定义bean，而不是使用传统的XML文件。查看@Configuration，@Bean，@Import和@DependsOn注解，了解如何使用这些新功能的示例。
@@ -2914,7 +2914,7 @@ CommonAnnotationBeanPostProcessor不仅可以识别@Resource注解，还可以�
 
 @Repository注解是任何实现存储库（也称为数据访问对象或DAO）的角色或构造型的类的标记。这个标记的用法是在[Exception translation](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/data-access.html#orm-exception-translation)中描述的异常的自动转换。
 
-Spring提供了更多的构造型注解：@Component，@Service和@Controller。 @Component是任何Spring管理组件的通用注解类型。对于更具体的用例，@Repository，@Service和@Controller是@Component的细化，例如，分别在持久层，服务层和表示层。因此，你可以使用@Component注释你的组件类，但如果用@Repository，@Service或者@Controller来注释它们，这样你的类就更适合用工具处理或者与切面关联。例如，这些结构型注解为切入点提供了理想的目标。 @Repository，@Service和@Controller也可能在Spring Framework的未来版本中携带额外的语义。因此，如果您在为您的服务层使用@Component或@Service之间进行选择，@Service显然是更好的选择。同样，如上所述，已经支持@Repository作为持久层自动异常转换的标记。
+Spring提供了更多的构造型注解：@Component，@Service和@Controller。 @Component是任何Spring管理组件的通用注解类型。对于更具体的用例，@Repository，@Service和@Controller是@Component的细化，例如，分别在持久层，服务层和表示层。因此，你可以使用@Component注解你的组件类，但如果用@Repository，@Service或者@Controller来注解它们，这样你的类就更适合用工具处理或者与切面关联。例如，这些结构型注解为切入点提供了理想的目标。 @Repository，@Service和@Controller也可能在Spring Framework的未来版本中携带额外的语义。因此，如果您在为您的服务层使用@Component或@Service之间进行选择，@Service显然是更好的选择。同样，如上所述，已经支持@Repository作为持久层自动异常转换的标记。
 
 ### 1.10.2. Meta-annotations
 
@@ -3086,71 +3086,71 @@ public class AppConfig {
 您还可以通过在注解中设置useDefaultFilters = false或者将use-default-filters =“false”设置为<component-scan />元素的属性来禁用默认过滤器。这将实际上禁用自动检测用@Component，@Repository，@Service，@Controller或@Configuration注解的类。
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+### 1.10.5. Defining bean metadata within components
+
+Spring组件也可以将bean定义元数据提供给容器。您可以使用与@Configuration注解中相同的@Bean注解来定义bean元数据。这是一个简单的例子：
+
+```java
+@Component
+public class FactoryMethodComponent {
+
+    @Bean
+    @Qualifier("public")
+    public TestBean publicInstance() {
+        return new TestBean("publicInstance");
+    }
+
+    public void doWork() {
+        // Component method implementation omitted
+    }
+}
+```
+
+这个类是一个Spring组件，其doWork（）方法中包含特定于应用程序的代码。但是，它也提供了一个bean定义，它具有引用方法publicInstance（）的工厂方法。 @Bean注解定义工厂方法和其他bean定义属性，例如通过@Qualifier注解定义限定符值。其他可以指定的方法级别注解是@Scope，@Lazy和自定义限定符注解。
+
+```
+@Lazy注解除了用于组件初始化的角色之外，还可以放置在标有@Autowired或@Inject的注入点上。在这种情况下，它导致注入一个 lazy-resolution代理。
+```
+
+如前所述，支持自动装配的字段和方法，并支持自动装配@Bean方法：
+
+```java
+@Component
+public class FactoryMethodComponent {
+
+    private static int i;
+
+    @Bean
+    @Qualifier("public")
+    public TestBean publicInstance() {
+        return new TestBean("publicInstance");
+    }
+
+    // use of a custom qualifier and autowiring of method parameters
+    @Bean
+    protected TestBean protectedInstance(
+            @Qualifier("public") TestBean spouse,
+            @Value("#{privateInstance.age}") String country) {
+        TestBean tb = new TestBean("protectedInstance", 1);
+        tb.setSpouse(spouse);
+        tb.setCountry(country);
+        return tb;
+    }
+
+    @Bean
+    private TestBean privateInstance() {
+        return new TestBean("privateInstance", i++);
+    }
+
+    @Bean
+    @RequestScope
+    public TestBean requestScopedInstance() {
+        return new TestBean("requestScopedInstance", 3);
+    }
+}
+```
+
+该示例将另一个名为privateInstance的bean的Age属性的值自动装配到String方法参数country。 Spring表达式语言元素通过符号#{ <expression> }来定义属性的值，对于@Value注解，表达式解析器会预先配置为在解析表达式文本时查找bean名称。
 
 从Spring Framework 4.3开始，您还可以声明一个类型为InjectionPoint的工厂方法参数（或其更具体的子类DependencyDescriptor），以便访问触发创建当前Bean的请求注入点。请注意，这只适用于bean实例实际创建的时候，注入已有实例的时候此注入点没有意义。因此，这个特性对prototype范围的bean来说是最有意义的。对于其他作用域，工厂方法将只能看到在给定范围内触发创建新的bean实例的注入点：例如，触发创建lazy singleton bean的依赖。在这种情况下使用提供的注入点元数据。
 
@@ -3261,39 +3261,233 @@ public class AppConfig {
 </beans>
 ```
 
+### 1.10.8. Providing qualifier metadata with annotations
+
+@Qualifier注解在 [Fine-tuning annotation-based autowiring with qualifiers](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-autowired-annotation-qualifiers)进行了讨论。本节中的示例演示如何使用@Qualifier注解和自定义限定符注解在解析自动导入依赖候选时提供细粒度的控制。因为这些示例基于XML bean定义，所以使用XML中bean元素的`qualifier` 或meta子元素在候选bean定义上提供限定符元数据。当依靠类路径扫描来自动检测compent时，可以在候选类上使用type-level 的注解提供限定符元数据。以下三个示例演示了这种技术：
+
+```java
+@Component
+@Qualifier("Action")
+public class ActionMovieCatalog implements MovieCatalog {
+    // ...
+}
+```
+
+```java
+@Component
+@Genre("Action")
+public class ActionMovieCatalog implements MovieCatalog {
+    // ...
+}
+```
+
+```java
+@Component
+@Offline
+public class CachingMovieCatalog implements MovieCatalog {
+    // ...
+}
+```
+
+```
+与大多数基于注解的替代方案一样，请记住，注释元数据绑定到类定义本身，而使用XML允许多个相同类型的bean在其限定符元数据中提供变体，因为使用xml配置时，元数据是与每个实例绑定在一起的，而不是与每个类绑定在一起。
+```
+
+### 1.10.9. Generating an index of candidate components
+
+虽然类路径扫描速度非常快，但通过在编译时创建静态候选列表，可以提高大型应用程序的启动性能。在这种模式下，应用程序的所有模块必须使用这种机制，当ApplicationContext检测到这样的索引时，它将自动使用它而不是扫描类路径。
+
+要生成索引，只需向每个包含目标组件（在组件扫描目录下）的模块添加一个附加依赖项即可：
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context-indexer</artifactId>
+        <version>5.0.2.RELEASE</version>
+        <optional>true</optional>
+    </dependency>
+</dependencies>
+```
+
+该过程将生成将META-INF / spring.components文件,这个文件会被包含在jar中。
+
+```
+在IDE中使用此模式时，必须将spring-context-indexer注册为注释处理器，以确保在更新候选组件时索引是最新的。
+```
+
+```
+当在类路径上找到META-INF / spring.components时，索引会自动启用。如果索引对于某些库（或用例）是部分可用的，但不能为整个应用程序构建，则可以通过设置spring.index.ignore为true来回退到常规的类路径配置（即根本没有索引），spring.index.ignore可以作为系统属性，也可以在classpath根目录下的spring.properties文件中设置。
+```
+
+## 1.11. Using JSR 330 Standard Annotations
+
+从Spring 3.0开始，Spring提供对JSR-330标准注释（依赖注入）的支持。这些注释以与Spring注释相同的方式被扫描。你只需要在你的类路径中有相关的jars。
+
+ 如果您正在使用Maven，则可以在标准Maven存储库（http://repo1.maven.org/maven2/javax/inject/javax.inject/1/）中使用javax.inject工件。您可以将以下依赖项添加到您的文件pom.xml中：
+
+```xml
+<dependency>
+    <groupId>javax.inject</groupId>
+    <artifactId>javax.inject</artifactId>
+    <version>1</version>
+</dependency>
+```
+
+### 1.11.1. Dependency Injection with @Inject and @Named
+
+可以使用@ javax.inject.Inject来代替@Autowired，如下所示：
+
+```java
+import javax.inject.Inject;
+
+public class SimpleMovieLister {
+
+    private MovieFinder movieFinder;
+
+    @Inject
+    public void setMovieFinder(MovieFinder movieFinder) {
+        this.movieFinder = movieFinder;
+    }
+
+    public void listMovies() {
+        this.movieFinder.findMovies(...);
+        ...
+    }
+}
+```
+
+与@Autowired一样，可以在 field level, method level and constructor-argument level使用@Inject。此外，您可以将注入点声明为Provider，允许按需访问较短scope的Bean，也允许通过一个Provider.get（）方法对其他Bean的lazy访问。以上示例的一个变体：
+
+```java
+import javax.inject.Inject;
+import javax.inject.Provider;
+
+public class SimpleMovieLister {
+
+    private Provider<MovieFinder> movieFinder;
+
+    @Inject
+    public void setMovieFinder(Provider<MovieFinder> movieFinder) {
+        this.movieFinder = movieFinder;
+    }
+
+    public void listMovies() {
+        this.movieFinder.get().findMovies(...);
+        ...
+    }
+}
+```
+
+如果您想为应该注入的依赖项使用限定名称，则应该按如下方式使用@Named注释：
+
+```java
+import javax.inject.Inject;
+import javax.inject.Named;
+
+public class SimpleMovieLister {
+
+    private MovieFinder movieFinder;
+
+    @Inject
+    public void setMovieFinder(@Named("main") MovieFinder movieFinder) {
+        this.movieFinder = movieFinder;
+    }
+
+    // ...
+}
+```
+
+像@Autowired一样，@Inject也可以和java.util.Optional或@Nullable一起使用。这在这里更适用于，因为@Inject没有`required` 的属性。
+
+```java
+public class SimpleMovieLister {
+
+    @Inject
+    public void setMovieFinder(Optional<MovieFinder> movieFinder) {
+        ...
+    }
+}
+```
+
+```java
+public class SimpleMovieLister {
+
+    @Inject
+    public void setMovieFinder(@Nullable MovieFinder movieFinder) {
+        ...
+    }
+}
+```
+
+### 1.11.2. @Named and @ManagedBean: standard equivalents to the @Component annotation
 
 
 
+可以使用@ javax.inject.Named或javax.annotation.ManagedBean代替@Component，如下所示：
 
+```java
+import javax.inject.Inject;
+import javax.inject.Named;
 
+@Named("movieListener")  // @ManagedBean("movieListener") could be used as well
+public class SimpleMovieLister {
 
+    private MovieFinder movieFinder;
 
+    @Inject
+    public void setMovieFinder(MovieFinder movieFinder) {
+        this.movieFinder = movieFinder;
+    }
 
+    // ...
+}
+```
 
+使用@Component而不指定组件的名称是很常见的。 @Named可以以类似的方式使用：
 
+```java
+import javax.inject.Inject;
+import javax.inject.Named;
 
+@Named
+public class SimpleMovieLister {
 
+    private MovieFinder movieFinder;
 
+    @Inject
+    public void setMovieFinder(MovieFinder movieFinder) {
+        this.movieFinder = movieFinder;
+    }
 
+    // ...
+}
+```
 
+使用@Named或@ManagedBean时，可以像使用Spring注释一样使用组件扫描：
 
+```java
+@Configuration
+@ComponentScan(basePackages = "org.example")
+public class AppConfig  {
+    ...
+}
+```
 
+与@Component相比，JSR-330 @Named和JSR-250 ManagedBean注释是能用来与其他注解组合。请使用Spring的stereotype 类型的注解来构建自定义组件注释。
 
+### 1.11.3. Limitations of JSR-330 standard annotations
 
+使用标准注释时，知道一些重要的功能不可用是很重要的，如下表所示：
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+| Spring              | javax.inject.*        | javax.inject restrictions / comments     |
+| ------------------- | --------------------- | ---------------------------------------- |
+| @Autowired          | @Inject               | `@Inject` has no 'required' attribute; can be used with Java 8’s `Optional`instead. |
+| @Component          | @Named / @ManagedBean | JSR-330 does not provide a composable model, just a way to identify named components. |
+| @Scope("singleton") | @Singleton            | The JSR-330 default scope is like Spring’s `prototype`. However, in order to keep it consistent with Spring’s general defaults, a JSR-330 bean declared in the Spring container is a `singleton` by default. In order to use a scope other than `singleton`, you should use Spring’s `@Scope`annotation. `javax.inject` also provides a [@Scope](http://download.oracle.com/javaee/6/api/javax/inject/Scope.html) annotation. Nevertheless, this one is only intended to be used for creating your own annotations. |
+| @Qualifier          | @Qualifier / @Named   | `javax.inject.Qualifier` is just a meta-annotation for building custom qualifiers. Concrete String qualifiers (like Spring’s `@Qualifier` with a value) can be associated through `javax.inject.Named`. |
+| @Value              | -                     | no equivalent                            |
+| @Required           | -                     | no equivalent                            |
+| @Lazy               | -                     | no equivalent                            |
+| ObjectFactory       | Provider              | `javax.inject.Provider` is a direct alternative to Spring’s `ObjectFactory`, just with a shorter `get()` method name. It can also be used in combination with Spring’s `@Autowired`or with non-annotated constructors and setter methods. |
 
