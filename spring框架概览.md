@@ -4414,3 +4414,268 @@ public static void main(String[] args) {
 
 Properties在几乎所有应用程序中都扮演着重要的角色，它可能来源于各种来源：properties files, JVM system properties, system environment variables, JNDI, servlet context parameters, ad-hoc Properties objects, Maps,等等。与Properties相关的Environment对象的作用是为用户提供一个方便的服务接口，用于配置属性来源并解析属性。
 
+### 1.13.1 Bean定义profiles
+
+Bean定义profiles是核心容器中的一种机制，这种机制允许在不同的环境中注册不同的bean。环境这个词对于不同的用户来说意味着不同的东西，这个特性可以帮助很多实践场景，包括：
+
+- 在开发环境中使用内存数据源，而在QA或生产环境中查找来自JNDI的相同数据源
+- 仅在将应用程序部署到性能环境中时才注册监视基础构件
+- 为客户A和客户B部署注册bean的自定义实现
+
+让我们考虑需要数据源的实际应用中的第一个用例。在测试环境中，配置可能如下所示：
+
+```java
+@Bean
+public DataSource dataSource() {
+    return new EmbeddedDatabaseBuilder()
+        .setType(EmbeddedDatabaseType.HSQL)
+        .addScript("my-schema.sql")
+        .addScript("my-test-data.sql")
+        .build();
+}
+```
+
+现在让我们考虑如何将这个应用程序部署到QA或生产环境中，假定应用程序的数据源将被注册到生产应用程序服务器的JNDI目录中。我们的dataSource bean现在看起来像这样：
+
+```java
+@Bean(destroyMethod="")
+public DataSource dataSource() throws Exception {
+    Context ctx = new InitialContext();
+    return (DataSource) ctx.lookup("java:comp/env/jdbc/datasource");
+}
+```
+
+问题是如何根据当前的环境来使用这两种配置。随着时间的推移，Spring用户设计了许多方法来完成这个任务，通常依赖于系统环境变量和包含$ {placeholder}的XML <import ></import>语句的组合，这些$ {placeholder}根据相应环境变量的值解析正确的配置文件路径。 Bean 定义 profiles是提供解决此问题的核心容器功能。
+
+如果我们概括一下上面特定于环境的bean定义的示例，我们最终需要在特定的上下文中注册某些bean定义，而不是在其他上下文下注册。你可以说你想在情况A中注册一个特定的bean定义配置文件，而在情况B中需要注册一个不同的配置文件。让我们先看看如何更新我们的配置来实现这个需求。
+
+#### @Profile
+
+当一个或多个指定的profiles处于激活状态时，[`@Profile`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/context/annotation/Profile.html) 注解允许您指示该组件有资格注册。使用我们上面的例子，我们可以重写dataSource配置如下：
+
+```java
+@Configuration
+@Profile("development")
+public class StandaloneDataConfig {
+
+    @Bean
+    public DataSource dataSource() {
+        return new EmbeddedDatabaseBuilder()
+            .setType(EmbeddedDatabaseType.HSQL)
+            .addScript("classpath:com/bank/config/sql/schema.sql")
+            .addScript("classpath:com/bank/config/sql/test-data.sql")
+            .build();
+    }
+}
+```
+
+```java
+@Configuration
+@Profile("production")
+public class JndiDataConfig {
+
+    @Bean(destroyMethod="")
+    public DataSource dataSource() throws Exception {
+        Context ctx = new InitialContext();
+        return (DataSource) ctx.lookup("java:comp/env/jdbc/datasource");
+    }
+}
+```
+
+```
+如前所述，使用@Bean方法，通常会选择使用编程式JNDI查找：使用Spring的JndiTemplate / JndiLocatorDelegate helper或上面显示的直接JNDI InitialContext用法，而不是JndiObjectFactoryBean变体，因为这会强制您声明返回类型为FactoryBean类型。
+```
+
+可以将@Profile用作创建自定义组合注释的元注释。以下示例定义了可用作@Profile（“production”）的替换的自定义@Production注释：
+
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Profile("production")
+public @interface Production {
+}
+```
+
+```
+如果@Configuration类用@Profile注解，则除非一个或多个指定的配置文件处于激活状态，否则与该类关联的所有@Bean方法和@Import注释将被忽略。如果一个@Component或者@Configuration类被标记为@Profile（{“p1”，“p2”}）那么除非配置文件'p1'和/或'p2'被激活，否则这个类将不会被注册/处理，。如果一个给定的配置文件以NOT运算符（！）作为前缀，那么如果该配置文件没有激活，注释的元素将被注册。例如，给定@Profile（{“p1”，“！p2”}），则如果配置文件“p1”处于激活状态或配置文件“p2”未激活，则会发生注册。
+```
+
+也可以在方法级别声明@Profile仅包括配置类的某一个特定的bean，例如用于特定bean的替代变体：
+
+```java
+@Configuration
+public class AppConfig {
+
+    @Bean("dataSource")
+    @Profile("development")
+    public DataSource standaloneDataSource() {
+        return new EmbeddedDatabaseBuilder()
+            .setType(EmbeddedDatabaseType.HSQL)
+            .addScript("classpath:com/bank/config/sql/schema.sql")
+            .addScript("classpath:com/bank/config/sql/test-data.sql")
+            .build();
+    }
+
+    @Bean("dataSource")
+    @Profile("production")
+    public DataSource jndiDataSource() throws Exception {
+        Context ctx = new InitialContext();
+        return (DataSource) ctx.lookup("java:comp/env/jdbc/datasource");
+    }
+}
+```
+
+```
+在@Bean方法上使用@Profile时，可能会有一个特殊情况：对于重载的具有相同Java方法名称的@Bean方法（类似于构造函数重载），需要在所有重载的方法上一致地声明@Profile条件。如果条件不一致，那么只有重载方法中第一个声明的条件才起作用。因此@Profile不能用于一个重载的方法，并且使用特定的参数签名；同一个bean的所有工厂方法之间的解析算法在创建时遵循Spring的构造函数解析算法。
+如果您想定义具有不同 profile条件的备用bean，请使用不同的Java方法名称，通过@Bean的name属性指向相同的bean名称，如上例所示。如果参数签名都是相同的（例如，所有的变体都有无参的工厂方法），那么这是在有效的Java类中实现这种安排的唯一方法（因为只能有一个方法具有特定的名字和参数签名）。
+```
+
+#### XML bean定义profiles
+
+XML对应的是<beans>元素的profile属性。上面的示例配置可以用两个XML文件重写，如下所示：
+
+```xml
+<beans profile="development"
+    xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+    xsi:schemaLocation="...">
+
+    <jdbc:embedded-database id="dataSource">
+        <jdbc:script location="classpath:com/bank/config/sql/schema.sql"/>
+        <jdbc:script location="classpath:com/bank/config/sql/test-data.sql"/>
+    </jdbc:embedded-database>
+</beans>
+```
+
+```xml
+<beans profile="production"
+    xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:jee="http://www.springframework.org/schema/jee"
+    xsi:schemaLocation="...">
+
+    <jee:jndi-lookup id="dataSource" jndi-name="java:comp/env/jdbc/datasource"/>
+</beans>
+```
+
+也可以避免配置拆分而是在同一个文件中和嵌套<beans />元素：
+
+```xml
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+    xmlns:jee="http://www.springframework.org/schema/jee"
+    xsi:schemaLocation="...">
+
+    <!-- other bean definitions -->
+
+    <beans profile="development">
+        <jdbc:embedded-database id="dataSource">
+            <jdbc:script location="classpath:com/bank/config/sql/schema.sql"/>
+            <jdbc:script location="classpath:com/bank/config/sql/test-data.sql"/>
+        </jdbc:embedded-database>
+    </beans>
+
+    <beans profile="production">
+        <jee:jndi-lookup id="dataSource" jndi-name="java:comp/env/jdbc/datasource"/>
+    </beans>
+</beans>
+```
+
+spring-bean.xsd被限制为只允许<beans>元素作为文件中的最后一个元素。这应该有助于提供灵活性，而不会在XML文件中造成混乱。
+
+#### 激活一个profile
+
+现在我们已经更新了配置，我们仍然需要指示Spring哪个profile处于激活状态。如果我们现在立刻启动我们的示例应用程序，我们会看到一个NoSuchBeanDefinitionException抛出，因为容器找不到名为dataSource的Spring bean。
+
+激活一个配置文件可以通过几种方式来完成，但最直接的方法就是通过一个ApplicationContext对其进行编程：
+
+```java
+AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
+ctx.getEnvironment().setActiveProfiles("development");
+ctx.register(SomeConfig.class, StandaloneDataConfig.class, JndiDataConfig.class);
+ctx.refresh();
+```
+
+另外，配置文件还可以通过spring.profiles.active属性声明激活，该属性可以通过system environment variables, JVM system properties, servlet context parameters in `web.xml`, or even as an entry in JNDI (see [PropertySource abstraction](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-property-source-abstraction)) 。在集成测试中，可以通过spring-test模块中的@ActiveProfiles注释声明激活profile（请参阅 [Context configuration with environment profiles](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/testing.html#testcontext-ctx-management-env-profiles)）。
+
+请注意，配置文件不是一个“或 - 或”的命题;一次可以激活多个配置文件。以编程方式，只需向setActiveProfiles（）方法提供多个配置文件名称，该方法接受String ... varargs：
+
+```java
+ctx.getEnvironment().setActiveProfiles("profile1", "profile2");
+```
+
+spring.profiles.active可以接受逗号分隔的profile名称列表：
+
+```java
+-Dspring.profiles.active="profile1,profile2"
+```
+
+#### Default profile
+
+默认profile表示默认启用的profile。考虑以下：
+
+```xml
+@Configuration
+@Profile("default")
+public class DefaultDataConfig {
+
+    @Bean
+    public DataSource dataSource() {
+        return new EmbeddedDatabaseBuilder()
+            .setType(EmbeddedDatabaseType.HSQL)
+            .addScript("classpath:com/bank/config/sql/schema.sql")
+            .build();
+    }
+}
+```
+
+如果没有profile被激活，上面的dataSource将被创建;这可以看作是为一个或多个bean提供默认定义的一种方式。如果启用了任何profile，则默认profile将不适用。
+
+默认profile的名称可以使用环境中的setDefaultProfiles（）更改，或者使用spring.profiles.default属性声明性地更改。
+
+### 1.13.2PropertySource抽象
+
+Spring的`Environment` 抽象提供了对可配置的Property资源的层次结构的搜索操作。为了充分解释，请考虑以下内容：
+
+```java
+ApplicationContext ctx = new GenericApplicationContext();
+Environment env = ctx.getEnvironment();
+boolean containsFoo = env.containsProperty("foo");
+System.out.println("Does my environment contain the 'foo' property? " + containsFoo);
+```
+
+在上面的代码片段中，我们看到了一个高级的方式来询问Spring是否为当前环境定义了foo属性。为了回答这个问题，Environment对象对一组PropertySource对象执行搜索。一个[`PropertySource`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/core/env/PropertySource.html)是对任意key-value对的简单抽象，Spring的[`StandardEnvironment`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/core/env/StandardEnvironment.html)配置了两个PropertySource对象，一个表示一组JVM系统属性（一个System.getProperties（）），另一个表示一组系统环境变量（一个System.getenv（））。
+
+这些默认property 源用于StandardEnvironment，用于独立应用程序。 StandardServletEnvironment填充了额外的默认property 源，包括servlet配置和servlet上下文参数。它可以选择启用JndiPropertySource。有关详细信息，请参阅javadocs。
+
+这些默认property 源用于StandardEnvironment，用于独立应用程序。 [`StandardServletEnvironment`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/web/context/support/StandardServletEnvironment.html)填充了额外的默认property 源，包括servlet配置和servlet上下文参数。它可以选择启用[`JndiPropertySource`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/jndi/JndiPropertySource.html)。有关详细信息，请参阅javadocs。
+
+具体来说，当使用StandardEnvironment时，如果在运行时存在foo系统属性或foo环境变量，则对env.containsProperty（“foo”）的调用将返回true。
+
+
+
+```
+属性搜索是分层执行的。默认情况下，系统属性优先于环境变量，所以如果在调用env.getProperty（“foo”）期间foo属性碰巧设置在两个地方，则系统属性值将优先被查找，并优先返回。请注意，属性值不会被合并，而是被前面的条目完全覆盖。
+对于公共的StandardServletEnvironment，完整的层次结构如下所示，最高优先级条目位于顶部：
+ServletConfig parameters (if applicable, e.g. in case of a DispatcherServlet context)
+
+ServletContext parameters (web.xml context-param entries)
+
+JNDI environment variables ("java:comp/env/" entries)
+
+JVM system properties ("-D" command-line arguments)
+
+JVM system environment (操作系统environment variables)
+```
+
+最重要的是，整个机制是可配置的。也许你有一个自定义的properties 来源，你想集成到这个搜索机制中。没问题 - 只需实现并实例化您自己的PropertySource并将其添加到当前环境的PropertySources集合：
+
+```java
+ConfigurableApplicationContext ctx = new GenericApplicationContext();
+MutablePropertySources sources = ctx.getEnvironment().getPropertySources();
+sources.addFirst(new MyPropertySource());
+```
+
+在上面的代码中，MyPropertySource在搜索中的优先级最高。如果它包含foo属性，则会在任何其他PropertySource中的foo属性之前被检测到并返回。  [`MutablePropertySources`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/core/env/MutablePropertySources.html) API公开了许多允许精确操作属性源集的方法。
