@@ -4410,3 +4410,7 @@ public static void main(String[] args) {
 
 
 
+*profile* 是只有在给定*profile* 处于活动状态时才能在容器中注册的命名的，有逻辑的bean定义集合。Beans 可以被分配给配置文件，不管bean是以XML还是通过注释来定义的。与配置文件相关的Environment对象的作用是确定哪些配置文件（如果有的话）当前处于活动状态，以及哪些配置文件（如果有）在默认情况下应该处于活动状态。
+
+Properties在几乎所有应用程序中都扮演着重要的角色，它可能来源于各种来源：properties files, JVM system properties, system environment variables, JNDI, servlet context parameters, ad-hoc Properties objects, Maps,等等。与Properties相关的Environment对象的作用是为用户提供一个方便的服务接口，用于配置属性来源并解析属性。
+
