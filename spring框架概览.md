@@ -3491,3 +3491,30 @@ public class AppConfig  {
 | @Lazy               | -                     | no equivalent                            |
 | ObjectFactory       | Provider              | `javax.inject.Provider` is a direct alternative to Spring’s `ObjectFactory`, just with a shorter `get()` method name. It can also be used in combination with Spring’s `@Autowired`or with non-annotated constructors and setter methods. |
 
+### 1.12 基于Java的容器配置
+
+Spring新的Java-configuration支持的中心构件是@Configuration注释的类和@ Bean注释的方法。
+
+@Bean注释用于指示一个方法实例化，配置和初始化一个新的对象，以便由Spring IoC容器管理。对于熟悉Spring的<beans /> XML配置的人来说，@Bean注释和<bean />元素具有相同的作用。你可以在任何Spring @Component类中使用@Bean注释的方法，但是它们通常和@Configuration bean一起使用。
+
+用@Configuration注解类的主要目的是表明它将作为bean定义的来源。此外，@Configuration类允许通过简单地调用同一个类中的其他@Bean方法来定义bean间的依赖关系。最简单的可能的@Configuration类将如下所示：
+
+```java
+@Configuration
+public class AppConfig {
+
+    @Bean
+    public MyService myService() {
+        return new MyServiceImpl();
+    }
+}
+```
+
+上面的AppConfig类将等同于下面的Spring <beans /> XML：
+
+```xml
+<beans>
+    <bean id="myService" class="com.acme.services.MyServiceImpl"/>
+</beans>
+```
+
