@@ -4679,3 +4679,60 @@ sources.addFirst(new MyPropertySource());
 ```
 
 在上面的代码中，MyPropertySource在搜索中的优先级最高。如果它包含foo属性，则会在任何其他PropertySource中的foo属性之前被检测到并返回。  [`MutablePropertySources`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/core/env/MutablePropertySources.html) API公开了许多允许精确操作属性源集的方法。
+
+### 1.13.3. @PropertySource
+
+[`@PropertySource`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/context/annotation/PropertySource.html)注释提供了一个方便的声明机制，用于将一个PropertySource添加到Spring的Environment中。
+
+给定一个包含键/值对testbean.name = myTestBean的文件“app.properties”，以下@Configuration类使用@PropertySource引入properties文件，以便对testBean.getName（）的调用返回“myTestBean”。
+
+```java
+@Configuration
+@PropertySource("classpath:/com/myco/app.properties")
+public class AppConfig {
+
+    @Autowired
+    Environment env;
+
+    @Bean
+    public TestBean testBean() {
+        TestBean testBean = new TestBean();
+        testBean.setName(env.getProperty("testbean.name"));
+        return testBean;
+    }
+}
+```
+
+存在于@PropertySource resource  location中的任何$ {...}占位符将根据已经在environment中注册的一组属性中解析。例如：
+
+```java
+@Configuration
+@PropertySource("classpath:/com/${my.placeholder:default/path}/app.properties")
+public class AppConfig {
+
+    @Autowired
+    Environment env;
+
+    @Bean
+    public TestBean testBean() {
+        TestBean testBean = new TestBean();
+        testBean.setName(env.getProperty("testbean.name"));
+        return testBean;
+    }
+}
+```
+
+假设“my.placeholder”存在于已经注册的一个 property sources中，例如系统属性或环境变量，占位符将被解析为相应的值。如果不是，则默认使用“default / path”。如果没有指定默认值，并且无法解析属性，则会抛出IllegalArgumentException异常。
+
+### 1.13.4 在语句中的占位符解析
+
+以前，元素中占位符的值只能根据JVM系统属性或环境变量来解决。现在不再是这种情况。由于Environment 抽象被集成到整个容器中，通过它可以轻松地路由占位符的解析。这意味着你可以用任何你喜欢的方式配置解析过程：改变搜索系统属性和环境变量的优先级，或者完全删除它们;根据需要添加您自己的 property源。
+
+具体而言，只要在“环境”中可用，无论客户属性是在哪里定义的，以下语句都可以工作：
+
+```xml
+<beans>
+    <import resource="com/bank/service/${customer}-config.xml"/>
+</beans>
+```
+
