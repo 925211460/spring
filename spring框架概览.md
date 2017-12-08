@@ -4763,5 +4763,137 @@ public class AppConfig {
 
 正如本章介绍中所讨论的，org.springframework.beans.factory包提供了用于管理和操作bean的基本功能，包括以编程的方式管理和操纵bean。 org.springframework.context包添加了扩展了BeanFactory接口的ApplicationContext接口，并扩展了其他接口，以更加面向应用程序框架的风格提供附加功能。许多人以完全声明的方式使用ApplicationContext，而不是以编程方式创建它，而是依赖诸如ContextLoader之类的支持类来把自动实例化ApplicationContext作为Java EE Web应用程序正常启动过程的一部分。
 
+为了以更加面向框架的风格增强BeanFactory功能，context package 还提供了以下功能：
 
 
+
+- 通过MessageSource接口访问i18n风格的message。
+- 通过ResourceLoader接口访问资源，如URL和文件。
+- 通过使用ApplicationEventPublisher接口，将事件发布到实现ApplicationListener接口的bean。
+- 加载多个（分层）contexts，允许每个context通过HierarchicalBeanFactory接口关注一个特定层，例如应用程序的Web层。
+
+### 1.15.1使用MessageSource进行国际化
+
+ApplicationContext接口扩展了一个名为MessageSource的接口，因此提供了国际化（i18n）功能。 Spring还提供了接口HierarchicalMessageSource，它可以分层解析消息。这些接口一起为Spring消息解析提供了基础。这些接口上定义的方法包括：
+
+- String getMessage（String code，Object [] args，String default，Locale loc）：用于从MessageSource中检索消息的基本方法。当找不到指定语言环境的消息时，将使用默认消息。使用标准库提供的MessageFormat功能，传入的任何参数都将成为替换值。
+- String getMessage（String code，Object [] args，Locale loc）：与前面的方法基本相同，但有一点不同：不能指定默认消息;如果无法找到消息，则抛出NoSuchMessageException
+- String getMessage（MessageSourceResolvable resolvable，Locale locale）：在前面的方法中使用的所有属性被包装在名为MessageSourceResolvable的类中，您可以在该方法使用这个类
+
+当一个ApplicationContext被加载时，它会自动搜索上下文中定义的MessageSource bean。该bean必须具有名称messageSource。如果找到这样一个bean，所有对前面方法的调用都被委托给这个bean。如果没有找到message source，则ApplicationContext将尝试查找包含具有相同名称的bean的父项。如果是这样，它将使用该Bean作为MessageSource。如果ApplicationContext找不到任何message source，则会实例化一个空的DelegatingMessageSource，以便能够接受对上面定义的方法的调用。
+
+Spring提供了两个MessageSource实现，ResourceBundleMessageSource和StaticMessageSource。两者都实现了HierarchicalMessageSource以进行嵌套消息传递。 StaticMessageSource很少使用，但提供了编程方式来添加消息到源。以下示例中显示了ResourceBundleMessageSource：
+
+```xml
+<beans>
+    <bean id="messageSource"
+            class="org.springframework.context.support.ResourceBundleMessageSource">
+        <property name="basenames">
+            <list>
+                <value>format</value>
+                <value>exceptions</value>
+                <value>windows</value>
+            </list>
+        </property>
+    </bean>
+</beans>
+```
+
+在这个例子中，假设你在你的classpath中定义了三个资源包，分别叫做format，exceptions和windows。任何解析消息的请求都将以JDK标准方式通过ResourceBundles解析消息。为了实现这个例子的目的，假设上述两个资源包文件的内容是...
+
+```properties
+# in format.properties
+message=Alligators rock!
+```
+
+```properties
+# in exceptions.properties
+argument.required=The {0} argument is required.
+```
+
+以下示例中显示了执行MessageSource功能的程序。请记住，所有ApplicationContext实现也是MessageSource实现，因此可以转换为MessageSource接口。
+
+```java
+public static void main(String[] args) {
+    MessageSource resources = new ClassPathXmlApplicationContext("beans.xml");
+    String message = resources.getMessage("message", null, "Default", null);
+    System.out.println(message);
+}
+```
+
+从上述程序产生的输出将是...
+
+```
+Alligators rock!
+```
+
+总结一下，MessageSource被定义在一个名为beans.xml的文件中，该文件存在于你的classpath的根目录下。 messageSource bean定义通过其basenames属性来引用许多资源包。在列表中传递给basenames属性的三个文件作为文件存在于类路径的根目录，分别称为format.properties，exceptions.properties和windows.properties。
+
+下面的示例展示了用于消息查找的参数;这些参数将被转换为字符串并插入到查找消息中的占位符中。
+
+```xml
+<beans>
+
+    <!-- this MessageSource is being used in a web application -->
+    <bean id="messageSource" class="org.springframework.context.support.ResourceBundleMessageSource">
+        <property name="basename" value="exceptions"/>
+    </bean>
+
+    <!-- lets inject the above MessageSource into this POJO -->
+    <bean id="example" class="com.foo.Example">
+        <property name="messages" ref="messageSource"/>
+    </bean>
+
+</beans>
+```
+
+```java
+public class Example {
+
+    private MessageSource messages;
+
+    public void setMessages(MessageSource messages) {
+        this.messages = messages;
+    }
+
+    public void execute() {
+        String message = this.messages.getMessage("argument.required",
+            new Object [] {"userDao"}, "Required", null);
+        System.out.println(message);
+    }
+}
+```
+
+调用execute（）方法的结果输出将是...
+
+```
+The userDao argument is required.
+```
+
+关于国际化（i18n），Spring的各种MessageSource实现遵循与标准的JDK ResourceBundle相同的语言环境解析和回退规则。简而言之，继续前面定义的messageSource示例，如果要解析英国（en-GB）语言环境的消息，则需要分别创建名为format_en_GB.properties，exceptions_en_GB.properties和windows_en_GB.properties的文件。
+
+```properties
+# in exceptions_en_GB.properties
+argument.required=Ebagum lad, the {0} argument is required, I say, required.
+```
+
+```java
+public static void main(final String[] args) {
+    MessageSource resources = new ClassPathXmlApplicationContext("beans.xml");
+    String message = resources.getMessage("argument.required",
+        new Object [] {"userDao"}, "Required", Locale.UK);
+    System.out.println(message);
+}
+```
+
+从上面的程序运行得到的输出将是...
+
+```
+Ebagum lad, the 'userDao' argument is required, I say, required.
+```
+
+您还可以使用MessageSourceAware接口来获取对已定义的任何MessageSource的引用。任何ApplicationContext中定义并实现MessageSourceAware接口的的bean在创建和配置bean时都会注入应用程序上下文的MessageSource。
+
+```
+作为ResourceBundleMessageSource的替代方法，Spring提供了一个ReloadableResourceBundleMessageSource类。这个变体支持相同的bundle文件格式，但比标准的基于JDK的ResourceBundleMessageSource实现更灵活。特别的是，它允许从任何Spring资源位置（而不仅仅是从类路径）读取文件，并支持热重载bundle属性文件（同时高效地缓存它们之间）。查看ReloadableResourceBundleMessageSource javadoc获取详细信息。
+```
