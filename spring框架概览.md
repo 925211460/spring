@@ -4736,3 +4736,32 @@ public class AppConfig {
 </beans>
 ```
 
+## 1.14注册一个LoadTimeWeaver
+
+Spring使用LoadTimeWeaver在类加载到Java虚拟机（JVM）时动态转换类。
+
+要启用load-time weaving，请将@EnableLoadTimeWeaving添加到其中一个@Configuration类中：
+
+```java
+@Configuration
+@EnableLoadTimeWeaving
+public class AppConfig {
+}
+```
+
+或者对于XML配置，使用 `context:load-time-weaver`元素：
+
+```xml
+<beans>
+    <context:load-time-weaver/>
+</beans>
+```
+
+一旦为ApplicationContext配置了LoadTimeWeaver。该ApplicationContext中的任何bean都实现了LoadTimeWeaverAware，从而接收对load-time weaver 实例的引用。这与 [Spring’s JPA support](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/data-access.html#orm-jpa) 相结合是非常有用的，因为JPA类转换必需load-time weaving。有关更多详细信息，请参阅LocalContainerEntityManagerFactoryBean javadocs。有关AspectJ加载时织入的更多信息，请参阅 [Load-time weaving with AspectJ in the Spring Framework](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-aj-ltw).。
+
+## 1.15 ApplicationContext的附加功能
+
+正如本章介绍中所讨论的，org.springframework.beans.factory包提供了用于管理和操作bean的基本功能，包括以编程的方式管理和操纵bean。 org.springframework.context包添加了扩展了BeanFactory接口的ApplicationContext接口，并扩展了其他接口，以更加面向应用程序框架的风格提供附加功能。许多人以完全声明的方式使用ApplicationContext，而不是以编程方式创建它，而是依赖诸如ContextLoader之类的支持类来把自动实例化ApplicationContext作为Java EE Web应用程序正常启动过程的一部分。
+
+
+
