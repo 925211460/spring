@@ -5408,3 +5408,55 @@ public interface ResourceLoaderAware {
 <property name="template" value="file:///some/resource/path/myTemplate.txt"/>
 ```
 
+## 2.7. Application contexts and Resource paths
+
+### 2.7.1. Constructing application contexts
+
+应用程序上下文构造函数（针对特定应用程序上下文类型）通常将字符串或字符串数组作为资源的位置路径，如组成上下文定义的XML文件的路径。
+
+当这样的位置路径没有前缀时，用于加载bean定义的特定Resource类型从该路径构建，具体的类型的取决于特定的应用程序上下文。例如，如果您创建一个ClassPathXmlApplicationContext，如下所示
+
+```java
+ApplicationContext ctx = new ClassPathXmlApplicationContext("conf/appContext.xml");
+```
+
+bean定义将从类路径中加载，因为将使用ClassPathResource。但是，如果您创建一个FileSystemXmlApplicationContext如下所示：
+
+```java
+ApplicationContext ctx =
+    new FileSystemXmlApplicationContext("conf/appContext.xml");
+```
+
+bean定义将从文件系统位置加载，在这种情况下相对于当前工作目录。
+
+请注意，在位置路径中使用特殊的classpath前缀或标准的URL前缀将覆盖为加载bean定义而创建的默认类型的Resource。所以这个FileSystemXmlApplicationContext ...
+
+```java
+ApplicationContext ctx =
+    new FileSystemXmlApplicationContext("classpath:conf/appContext.xml");
+```
+
+实际上会从classpath中加载它的bean定义。但是，它仍然是一个FileSystemXmlApplicationContext。如果随后将其用作ResourceLoader，则任何没有前缀的路径仍将被视为文件系统路径。
+
+#### 构造ClassPathXmlApplicationContext实例 - 快捷方式
+
+ClassPathXmlApplicationContext公开了许多构造函数来实现方便的实例化。其基本思想是只提供一个字符串数组，它只包含XML文件本身的文件名（没有前导路径信息），还提供一个Class; ClassPathXmlApplicationContext将从所提供的Class中派生路径信息。
+
+有一个例子希望能够使这个清楚。考虑一下这样的目录布局：
+
+```
+com/
+  foo/
+    services.xml
+    daos.xml
+    MessengerService.class
+```
+
+由“services.xml”和“daos.xml”中定义的bean组成的ClassPathXmlApplicationContext实例可以像这样被实例化...
+
+```java
+ApplicationContext ctx = new ClassPathXmlApplicationContext(
+    new String[] {"services.xml", "daos.xml"}, MessengerService.class);
+```
+
+有关各种构造函数的详细信息，请参考ClassPathXmlApplicationContext javadocs。
