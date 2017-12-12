@@ -5460,3 +5460,69 @@ ApplicationContext ctx = new ClassPathXmlApplicationContext(
 ```
 
 有关各种构造函数的详细信息，请参考ClassPathXmlApplicationContext javadocs。
+
+### 2.7.2应用程序上下文构造函数资源路径中的通配符
+
+应用程序上下文构造函数中的resource路径可以是一个简单的路径（如上所示），它和目标资源是一对一的关系，或者可以包含特殊的“classpath *：”前缀和/或内部的Ant-样式正则表达式（使用Spring的PathMatcher实用程序进行匹配）。后者都是有效的通配符。
+
+此机制的一个用途是在执行组件式应用程序组装时。所有组件都可以将上下文定义片段“发布”到公共的位置路径，并且当最后的应用程序上下文使用同样的classpath *：前缀的路径创建时，所有组件的上下文片段都将被自动提取。
+
+请注意，此通配符只能用于应用程序上下文构造函数中的resource paths（或直接使用PathMatcher实用程序类分层结构时），并在构建上下文时被解析。它与resource类型本身无关。无法使用classpath*：前缀来构造实际的资源，因为资源一次只能指向一个资源。
+
+#### Ant-style Patterns
+
+当路径位置包含Ant样式时，例如：
+
+```
+/WEB-INF/*-context.xml
+  com/mycompany/**/applicationContext.xml
+  file:C:/some/path/*-context.xml
+  classpath:com/mycompany/**/applicationContext.xml
+```
+
+解析器遵循更复杂但定义好的过程来尝试解析通配符。它为直到最后一个非通配符的路径生成一个资源，并从中获得一个URL。如果此URL不是jar：URL或容器特定的变体（例如，WebLogic中的zip，WebSphere中的wsjar等），则从中获取java.io.File，并通过遍历文件系统来解析通配符。对于jar URL，解析器要么从中获取java.net.JarURLConnection，要么手动解析jar的URL，然后遍历jar文件的内容来解析通配符。
+
+##### 对可移植性的影响
+
+如果指定的路径已经是文件URL（无论是显式地还是隐式的，如果基本的ResourceLoader是一个FileSystemResourceLoader就是隐式的)，那么通配符就能保证以完全可移植性的方式工作。
+
+如果指定的路径是classpath位置，则解析器必须通过Classloader.getResource（）调用获取最后一个非通配符路径URL。由于这只是路径的一个节点（不是最后的文件），所以在这种情况下，它实际上还未确定这种情况下返回什么类型的URL。实际上，当classpath resource被解析为文件系统location时，这个URL始终是代表目录的java.io.File；当classpath资源被解析为jar位置时，这个URL就是某种类型的jar URL。但是，这个操作仍然存在可移植性问题。
+
+如果为最后一个非通配符段获取了一个jar URL，那么解析器必须能够从其中获取一个java.net.JarURLConnection，或者手动解析该jar URL，以便能够遍历该jar的内容，并解析通配符。这在大多数环境下都能正常工作，但是在其他环境下却不能正常工作，强烈建议您在特定环境下对来自jars的资源通配符解析进行测试，当你依赖它之前。
+
+#### classpath *：前缀
+
+在构建基于XML的应用程序上下文时，位置字符串可以使用特殊的classpath*：前缀：
+
+```java
+ApplicationContext ctx =
+    new ClassPathXmlApplicationContext("classpath*:conf/appContext.xml");
+```
+
+这个特殊的前缀指定必须获得与给定名称匹配的所有classpath资源（在内部，这本质上是通过ClassLoader.getResources（...）调用实现的），然后合并以形成最终的应用程序上下文定义。
+
+```
+通配符classpath依赖于底层类加载器的getResources（）方法。由于现在大多数应用程序服务器都提供了自己的类加载器实现，所以在处理jar文件时行为可能会有所不同。检查classpath *是否工作的简单测试是使用类加载器从classpath中的jar中加载文件：getClass（）。getClassLoader（）。getResources（“<someFileInsideTheJar>”）。尝试使用具有相同名称但位于两个不同位置的文件进行此测试。如果返回的结果不正确，请检查应用程序服务器文档以了解可能影响类加载器行为的设置。
+```
+
+classpath *：前缀也可以与其他位置路径中的PathMatcher模式结合使用，例如classpath *：META-INF / *  -  beans.xml。在这种情况下，解析策略相当简单：在最后一个非通配符路径段上使用ClassLoader.getResources（）调用来获取类加载器层次结构中的所有匹配资源，然后根据PathMatcher解析策略筛选出满足如上所述的通配符子路径。
+
+#### 其他有关通配符的说明
+
+请注意，除非实际的目标文件驻留在文件系统中，否则classpath *：与Ant样式结合使用时，只能在pattern路径开始之前至少有一个根目录可靠地工作。这意味着像classpath *：*.xml这样的模式可能不会从jar文件的根文件中检索文件，而只能从扩展目录的根文件中检索文件。
+
+Spring检索类路径条目的能力源于JDK的ClassLoader.getResources（）方法，该方法对于传入的空字符串参数只返回file system locations（指示要搜索的潜在根路径）。 Spring会评估URLClassLoader运行时配置和jar文件中的“java.class.path”清单，但这并不保证会导致可移植的行为。
+
+如果要搜索的根路径在多个classpath位置中存在，则Ant样式模式的classpath：的资源不保证能够找到匹配的资源。这是因为像这样的资源
+
+```
+com/mycompany/package1/service-context.xml
+```
+
+可能只在一个位置，但是当一条路径如
+
+```java
+classpath:com/mycompany/**/service-context.xml
+```
+
+被用来解析时，解析器将处理getResource（“com / mycompany”）返回的（第一个）URL。如果此基础包节点存在于多个类加载器位置中，则实际的最终资源可能不在其下。因此，最好在这种情况下使用具有相同Ant样式的“classpath *：”，它将搜索包含根包的所有类路径位置。
