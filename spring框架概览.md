@@ -5526,3 +5526,46 @@ classpath:com/mycompany/**/service-context.xml
 ```
 
 被用来解析时，解析器将处理getResource（“com / mycompany”）返回的（第一个）URL。如果此基础包节点存在于多个类加载器位置中，则实际的最终资源可能不在其下。因此，最好在这种情况下使用具有相同Ant样式的“classpath *：”，它将搜索包含根包的所有类路径位置。
+
+### 2.7.3FileSystemResource注意事项
+
+没有附加到FileSystemApplicationContext（也就是说，FileSystemApplicationContext不是实际的ResourceLoader）的FileSystemResource将按照您的预期处理绝对路径和相对路径。相对路径是相对于当前的工作目录，而绝对路径是相对于文件系统的根目录。
+
+但是，为了向后兼容（历史）的原因，当FileSystemApplicationContext是ResourceLoader时会有所不同。 FileSystemApplicationContext会强制所有附加的FileSystemResource实例将所有位置路径视为相对路径，无论它们是否以一个前导斜杠开始。在实践中，这意味着以下是等价的：
+
+```java
+ApplicationContext ctx =
+    new FileSystemXmlApplicationContext("conf/context.xml");
+```
+
+```java
+ApplicationContext ctx =
+    new FileSystemXmlApplicationContext("/conf/context.xml");
+```
+
+如下所示：（尽管它们有所不同，有一种情况是相对的，另一种是绝对的）,但都会按相对路径处理。
+
+```java
+FileSystemXmlApplicationContext ctx = ...;
+ctx.getResource("some/resource/path/myTemplate.txt");
+```
+
+```java
+FileSystemXmlApplicationContext ctx = ...;
+ctx.getResource("/some/resource/path/myTemplate.txt");
+```
+
+在实践中，如果需要真正的绝对文件系统路径，最好放弃使用FileSystemResource / FileSystemXmlApplicationContext的绝对路径，并使用文件：URL前缀强制使用UrlResource。
+
+```java
+
+// actual context type doesn't matter, the Resource will always be UrlResource
+ctx.getResource("file:///some/resource/path/myTemplate.txt");
+```
+
+```java
+// force this FileSystemXmlApplicationContext to load its definition via a UrlResource
+ApplicationContext ctx =
+    new FileSystemXmlApplicationContext("file:///conf/context.xml");
+```
+
