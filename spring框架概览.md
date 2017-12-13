@@ -5569,3 +5569,123 @@ ApplicationContext ctx =
     new FileSystemXmlApplicationContext("file:///conf/context.xml");
 ```
 
+# 3. Validation, Data Binding, and Type Conversion
+
+## 3.1. Introduction
+
+​                                                           JSR-303/JSR-349 Bean Validation
+
+Spring Framework 4.0在安装方面支持Bean Validation 1.0（JSR-303）和Bean Validation 1.1（JSR-349），同时也支持Spring Validator接口。
+
+如 [Spring Validation](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#validation-beanvalidation)中所述，应用程序可以选择全局启用Bean validation ，并专门用于所有验证需求。
+
+应用程序还可以为每个DataBinder实例注册额外的Spring Validator实例，如[Configuring a DataBinder](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#validation-binder)中所述。这对于插入validation 逻辑而不使用注释可能是有用的。
+
+将validation 视为业务逻辑有利有弊，Spring提供了验证（和数据绑定）的设计同样也是有利有弊。具体的验证不应该绑定到Web层，应该易于本地化，应该可以插入任何可用的验证器。考虑到上述情况，Spring已经提出了一个Validator接口，这个接口在应用程序的每一层都是基本的并且很有用的。
+
+Data binding对于允许动态地绑定用户输入到应用程序的domain model（或绑定到处理用户输入的任何对象）是有用的。 Spring提供了所谓的DataBinder来做到这一点。 Validator和DataBinder组成了validation包，主要用于但不限于MVC框架。
+
+BeanWrapper是Spring框架中的一个基本概念，在很多地方都有使用。但是，您可能不需要直接使用BeanWrapper。因为这是参考文件，所以我们觉得有些解释可能是为了。我们将在本章中解释BeanWrapper，因为如果您打算使用它，那么在尝试将数据绑定到对象时很可能会这样做。
+
+Spring的DataBinder和较低级别的BeanWrapper都使用PropertyEditor来解析和格式化属性值。 PropertyEditor概念是JavaBeans规范的一部分，本章也对此进行了说明。 Spring 3引入了一个“core.convert”包，它提供了一个通用的类型转换工具，以及一个用于格式化UI字段值的高级“格式”包。这些新软件包可以作为PropertyEditor的简单替代品，本章也将对其进行讨论。
+
+## 3.2使用Spring的Validator接口进行验证
+
+Spring提供了一个可以用来验证对象的Validator接口。 Validator接口使用Errors对象工作，以便在验证时验证器可以将验证失败报告给Errors对象。
+
+我们来考虑一个 data object：
+
+```java
+public class Person {
+
+    private String name;
+    private int age;
+
+    // the usual getters and setters...
+}
+```
+
+实现Validator非常简单，特别是当你知道Spring Framework也提供的ValidationUtils helper类时。
+
+```java
+public class PersonValidator implements Validator {
+
+    /**
+     * This Validator validates *just* Person instances
+     */
+    public boolean supports(Class clazz) {
+        return Person.class.equals(clazz);
+    }
+
+    public void validate(Object obj, Errors e) {
+        ValidationUtils.rejectIfEmpty(e, "name", "name.empty");
+        Person p = (Person) obj;
+        if (p.getAge() < 0) {
+            e.rejectValue("age", "negativevalue");
+        } else if (p.getAge() > 110) {
+            e.rejectValue("age", "too.darn.old");
+        }
+    }
+}
+```
+
+如您所见，ValidationUtils类上的静态rejectIfEmpty（..）方法用于拒绝“name”属性，如果它为null或空字符串。查看ValidationUtils的javadocs，看看它提供的其他功能。
+
+尽管可以实现一个Validator类来验证"rich"对象中的每个嵌套对象，但最好是将每个嵌套类对象的验证逻辑封装在自己的Validator实现中。一个“rich”对象的简单例子是一个由两个字符串属性（姓和名）和一个复杂的Address对象组成的Customer。 Address对象可以独立于Customer对象使用，所以一个独特的AddressValidator已经被实现。如果您希望您的CustomerValidator重复使用AddressValidator类中包含的逻辑而无需复制粘贴，则可以在您的CustomerValidator中依赖注入或实例化AddressValidator，并像下面这样使用它：
+
+```java
+public class CustomerValidator implements Validator {
+
+    private final Validator addressValidator;
+
+    public CustomerValidator(Validator addressValidator) {
+        if (addressValidator == null) {
+            throw new IllegalArgumentException("The supplied [Validator] is " +
+                "required and must not be null.");
+        }
+        if (!addressValidator.supports(Address.class)) {
+            throw new IllegalArgumentException("The supplied [Validator] must " +
+                "support the validation of [Address] instances.");
+        }
+        this.addressValidator = addressValidator;
+    }
+
+    /**
+     * This Validator validates Customer instances, and any subclasses of Customer too
+     */
+    public boolean supports(Class clazz) {
+        return Customer.class.isAssignableFrom(clazz);
+    }
+
+    public void validate(Object target, Errors errors) {
+        ValidationUtils.rejectIfEmptyOrWhitespace(errors, "firstName", "field.required");
+        ValidationUtils.rejectIfEmptyOrWhitespace(errors, "surname", "field.required");
+        Customer customer = (Customer) target;
+        try {
+            errors.pushNestedPath("address");
+            ValidationUtils.invokeValidator(this.addressValidator, customer.getAddress(), errors);
+        } finally {
+            errors.popNestedPath();
+        }
+    }
+}
+```
+
+将验证错误报告给传递给验证器的Errors对象。在Spring Web MVC的情况下，你可以使用<spring：bind />标签检查错误信息，当然你也可以自己检查错误对象。有关它提供的方法的更多信息可以在javadocs中找到。
+
+## 3.3将错误code解析为错误消息
+
+我们已经谈到了databinding 和validation。输出与 validation errors相对应的消息是我们需要讨论的最后一件事。在上面的例子中，我们校验了name和age。如果我们要通过使用MessageSource输出错误消息，我们将使用我们在校验字段（在这种情况下为“name”和“age”）时给出的错误代码。当你从Errors接口调用（直接或者间接使用ValidationUtils类）rejectValue或者其他的一个reject方法时，底层的实现不仅会注册你传入的code，还会注册一些额外的错误代码。它注册的错误代码由所使用的MessageCodesResolver决定。默认情况下，使用DefaultMessageCodesResolver，例如，它不仅会使用您提供的code注册消息，还会使用包含您传递给reject方法的field name的消息。因此，如果您使用rejectValue（“age”，“too.darn.old”）方法拒绝了一个字段，那么除了too.darn.old 消息外，Spring还会注册too.darn.old.age和too.darn.old .age.int（所以第一个将包括字段名称，第二个将包括字段的类型）;这是为了方便开发人员定位错误消息等。
+
+有关MessageCodesResolver和默认策略的更多信息可分别在[`MessageCodesResolver`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/validation/MessageCodesResolver.html)和 [`DefaultMessageCodesResolver`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/validation/DefaultMessageCodesResolver.html)的javadoc中找到。
+
+## 3.4 Bean操作和BeanWrapper
+
+org.springframework.beans包遵循Oracle提供的JavaBeans标准。 JavaBean只是一个具有默认无参构造函数的类，它遵循一个命名约定（举例来说），名为bingoMadness的属性将具有setter方法setBingoMadness（..）和getter方法getBingoMadness（）。有关JavaBeans和规范的更多信息，请参阅Oracle网站（[javabeans](http://docs.oracle.com/javase/6/docs/api/java/beans/package-summary.html)）。
+
+Beans包中一个相当重要的类是BeanWrapper接口及其相应的实现（BeanWrapperImpl）。根据javadocs，BeanWrapper提供设置和获取属性值（单独或批量），获取属性描述符，并查询属性，以确定它们是否可读或可写的功能。此外，BeanWrapper提供对嵌套属性的支持，可以将子属性的属性设置为无限深度。然后，BeanWrapper支持添加标准的JavaBeans PropertyChangeListeners和VetoableChangeListeners，而不需要在目标类中添加额外的支持代码。最后但并非最不重要的是，BeanWrapper提供了对索引属性设置的支持。 BeanWrapper通常不被应用程序代码直接使用，而是被DataBinder和BeanFactory使用。
+
+BeanWrapper的工作方式由它的名字可以表示一部分：它包装一个bean来对这个bean执行操作，比如设置和检索属性。
+
+
+
