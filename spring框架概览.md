@@ -5687,5 +5687,91 @@ Beans包中一个相当重要的类是BeanWrapper接口及其相应的实现（B
 
 BeanWrapper的工作方式由它的名字可以表示一部分：它包装一个bean来对这个bean执行操作，比如设置和检索属性。
 
+### 3.4.1 Setting and getting基本和嵌套的属性
 
+设置和获取属性是使用setPropertyValue（s）和getPropertyValue（s）方法完成的，这两个方法都带有一些重载的变体。他们都在javadocs中有更详细的描述。重要的是要知道有一些约定用于表示对象的属性。几个例子：
 
+| Expression             | Explanation                              |
+| ---------------------- | ---------------------------------------- |
+| `name`                 | Indicates the property `name` corresponding to the methods `getName()` or `isName()` and `setName(..)` |
+| `account.name`         | Indicates the nested property `name` of the property `account`corresponding e.g. to the methods `getAccount().setName()`or `getAccount().getName()` |
+| `account[2]`           | Indicates the *third* element of the indexed property `account`. Indexed properties can be of type `array`, `list` or other *naturally ordered* collection |
+| `account[COMPANYNAME]` | Indicates the value of the map entry indexed by the key *COMPANYNAME* of the Map property `account` |
+
+下面你会发现一些使用BeanWrapper来获取和设置属性的例子。
+
+（如果你不打算直接使用BeanWrapper，那么下一节对你来说并不是非常重要，如果你只是使用DataBinder和BeanFactory以及它们的开箱即用的实现，你应该跳到有关PropertyEditors的部分。）
+
+考虑以下两个类：
+
+```java
+public class Company {
+
+    private String name;
+    private Employee managingDirector;
+
+    public String getName() {
+        return this.name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Employee getManagingDirector() {
+        return this.managingDirector;
+    }
+
+    public void setManagingDirector(Employee managingDirector) {
+        this.managingDirector = managingDirector;
+    }
+}
+```
+
+```java
+public class Employee {
+
+    private String name;
+
+    private float salary;
+
+    public String getName() {
+        return this.name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public float getSalary() {
+        return salary;
+    }
+
+    public void setSalary(float salary) {
+        this.salary = salary;
+    }
+}
+```
+
+以下代码片段显示了如何获取和操作实例化`Companies` and `Employees`的一些属性的一些示例：
+
+```java
+BeanWrapper company = new BeanWrapperImpl(new Company());
+// setting the company name..
+company.setPropertyValue("name", "Some Company Inc.");
+// ... can also be done like this:
+PropertyValue value = new PropertyValue("name", "Some Company Inc.");
+company.setPropertyValue(value);
+
+// ok, let's create the director and tie it to the company:
+BeanWrapper jim = new BeanWrapperImpl(new Employee());
+jim.setPropertyValue("name", "Jim Stravinsky");
+company.setPropertyValue("managingDirector", jim.getWrappedInstance());
+
+// retrieving the salary of the managingDirector through the company
+Float salary = (Float) company.getPropertyValue("managingDirector.salary");
+```
+
+### 3.4.2内置的PropertyEditor实现
+
+Spring使用PropertyEditors的概念来实现Object和String之间的转换。如果你仔细想想，有时候可能会用不同于对象本身的方式很方便地表示属性。例如，一个日期可以用人类可读的方式表示（如String'2007-14-09'），而我们仍然能够将人类可读的表单转换回原始date（或者甚至更好：将任何日期以人类可读形式输入，返回日期对象）。这种行为可以通过注册java.beans.PropertyEditor类型的自定义编辑器来实现。在上一章中提到的在BeanWrapper上注册自定义编辑器，或者在特定的IoC容器中注册自定义编辑器，可以使其知道如何将属性转换为所需的类型。在Oracle提供的java.beans包的javadoc中阅读更多关于PropertyEditors的内容。
