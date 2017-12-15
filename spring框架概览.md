@@ -1,3 +1,5 @@
+
+
 # spring框架概览
 
 ## 我们说的spring指的是什么
@@ -6053,6 +6055,200 @@ public interface GenericConverter {
     public Set<ConvertiblePair> getConvertibleTypes();
 
     Object convert(Object source, TypeDescriptor sourceType, TypeDescriptor targetType);
+
+}
+```
+
+要实现一个GenericConverter，getConvertibleTypes（）返回支持的源→目标类型对。然后实现convert（Object，TypeDescriptor，TypeDescriptor）来实现你的转换逻辑。源TypeDescriptor 提供对持有正在转换的值的源字段的访问。目标TypeDescriptor提供对设置转换值的目标字段的访问。
+
+GenericConverter的一个很好的例子是在Java Array和Collection之间转换的转换器。这样的ArrayToCollectionConverter内省了声明目标Collection类型的字段来解析Collection的元素类型。这允许源数组中的每个元素在目标字段上设置Collection之前转换为Collection元素类型。
+
+```
+由于GenericConverter是一个更复杂的SPI接口，只有在需要时才使用它。 基本类型转换需求推荐使用Converter or ConverterFactory 。
+```
+
+#### ConditionalGenericConverter
+
+有时你只想要一个一个特定的条件成立时才执行Converter。例如，当目标字段上存在特定的注释时，才执行一个Converter。或者，如果在目标类上定义了特定的方法（如静态valueOf方法），才执行一个Converter。 ConditionalGenericConverter是GenericConverter和ConditionalConverter接口的联合，允许您定义这样的自定义匹配条件：
+
+```java
+public interface ConditionalConverter {
+
+    boolean matches(TypeDescriptor sourceType, TypeDescriptor targetType);
+
+}
+
+public interface ConditionalGenericConverter
+    extends GenericConverter, ConditionalConverter {
+
+}
+```
+
+ConditionalGenericConverter的一个很好的例子是一个EntityConverter，它在持久化实体标识符和实体引用之间进行转换。这种EntityConverter只有在目标实体类型声明静态查找方法（例如， findAccount（Long）。您可以在匹配的实现（TypeDescriptor，TypeDescriptor）中执行这样的finder方法检查。
+
+### 3.5.4. ConversionService API
+
+ConversionService定义了用于在运行时执行类型转换逻辑的统一API。转换器通常在这个外观界面里执行：
+
+```java
+package org.springframework.core.convert;
+
+public interface ConversionService {
+
+    boolean canConvert(Class<?> sourceType, Class<?> targetType);
+
+    <T> T convert(Object source, Class<T> targetType);
+
+    boolean canConvert(TypeDescriptor sourceType, TypeDescriptor targetType);
+
+    Object convert(Object source, TypeDescriptor sourceType, TypeDescriptor targetType);
+
+}
+```
+
+大多数ConversionService实现也实现了ConverterRegistry，它提供了一个用于注册转换器的SPI。在内部，ConversionService实现委托其注册的转换器来执行类型转换逻辑。
+
+在core.convert.support包中提供了强大的ConversionService实现。 GenericConversionService是适用于大多数环境的通用实现。 ConversionServiceFactory为创建常见的ConversionService配置提供了一个便利的工厂
+
+### 3.5.5 配置ConversionService
+
+ConversionService是一个无状态对象，设计用于在应用程序启动时实例化，然后在多个线程之间共享。在Spring应用程序中，通常为每个Spring容器（或ApplicationContext）配置一个ConversionService实例。该ConversionService将被Spring提取，然后在框架需要执行类型转换时使用。您也可以将这个ConversionService注入到任何一个bean中，并直接调用它。
+
+```
+如果没有使用Spring注册ConversionService，则使用原始的基于PropertyEditor的系统。
+```
+
+要用Spring注册一个默认的ConversionService，添加下面的id为conversionService的bean定义：
+
+```xml
+<bean id="conversionService"
+    class="org.springframework.context.support.ConversionServiceFactoryBean"/>
+```
+
+默认的ConversionService可以在 strings, numbers, enums, collections, maps和其他常用类型之间进行转换。要使用自定义转换器补充或覆盖默认转换器，请设置converters属性。属性值需要实现Converter，ConverterFactory或GenericConverter接口。
+
+```xml
+<bean id="conversionService"
+        class="org.springframework.context.support.ConversionServiceFactoryBean">
+    <property name="converters">
+        <set>
+            <bean class="example.MyCustomConverter"/>
+        </set>
+    </property>
+</bean>
+```
+
+在Spring MVC应用程序中使用ConversionService也很常见。请参阅Spring MVC章节中的 [Conversion and Formatting](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/web.html#mvc-config-conversion)。
+
+在某些情况下，您可能希望在转换过程中同时格式化。有关使用FormattingConversionServiceFactoryBean的详细信息，请参阅 [FormatterRegistry SPI](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#format-FormatterRegistry-SPI)。
+
+### 3.5.6以编程方式使用ConversionService
+
+要以编程方式使用ConversionService实例，只需像为其他任何bean注入引用一样注入它的引用即可：
+
+```java
+@Service
+public class MyService {
+
+    @Autowired
+    public MyService(ConversionService conversionService) {
+        this.conversionService = conversionService;
+    }
+
+    public void doIt() {
+        this.conversionService.convert(...)
+    }
+}
+```
+
+对于大多数使用情况，可以使用指定targetType的convert方法，但不适用于更复杂的类型，如参数化元素的集合。例如，如果要以编程方式将Integer List转换为字符串List，则需要提供源和目标类型的正式定义。
+
+幸运的是，TypeDescriptor提供了多种选项来简化这个定义：
+
+```java
+DefaultConversionService cs = new DefaultConversionService();
+
+List<Integer> input = ....
+cs.convert(input,
+    TypeDescriptor.forObject(input), // List<Integer> type descriptor
+    TypeDescriptor.collection(List.class, TypeDescriptor.valueOf(String.class)));
+```
+
+请注意，DefaultConversionService会自动注册适用于大多数环境的转换器。这包括collection converters, scalar converters, and also basic `Object` to `String` converters。可以使用DefaultConversionService类上的静态addDefaultConverters方法将相同的转换器注册到任何ConverterRegistry。
+
+value 类型的转换器将被重新用于数组和集合，因此，假设标准的集合处理是合适的，就不需要创建一个特定的转换器来从S集合转换为T集合。
+
+## 3.6. Spring Field Formatting
+
+如前所述，core.convert是一个通用的类型转换系统。它提供了一个统一的ConversionService API以及一个强类型的Converter SPI，用于实现从一种类型到另一种类型的转换逻辑。 Spring容器使用这个系统来绑定bean的属性值。另外，Spring表达式语言（SpEL）和DataBinder都使用这个系统绑定字段值。例如，当SpEL需要强制Short to a Long来完成一个expression.setValue（Object bean，Object value）尝试时，core.convert系统将会执行强制类型转换。
+
+现在考虑典型客户端环境（如Web或桌面应用程序）的类型转换要求。在这样的环境中，您通常为了支持客户端回调过程而转换String，并返回String以支持view呈现过程。另外，您经常需要本地化字符串值。更一般的core.convert Converter SPI不能直接解决这种格式化要求。为了直接解决这些问题，Spring 3引入了一个方便的Formatter SPI，为客户端环境提供了PropertyEditor的一个简单而强大的替代方案。
+
+通常，在需要实现通用类型转换逻辑时使用Converter SPI;例如，用于在java.util.Date和java.lang.Long之间进行转换。在客户端环境（如Web应用程序）中需要解析和打印本地化的字段值时则使用Formatter SPI时。 ConversionService为两个SPI提供了一个统一的类型转换API。
+
+### 3.6.1. Formatter SPI
+
+Formatter SPI来实现字段格式化逻辑是简单和强类型的：
+
+```java
+package org.springframework.format;
+
+public interface Formatter<T> extends Printer<T>, Parser<T> {
+}
+```
+
+Formatter从Printer and Parser 构建块接口扩展而来：
+
+```java
+public interface Printer<T> {
+    String print(T fieldValue, Locale locale);
+}
+```
+
+```java
+import java.text.ParseException;
+
+public interface Parser<T> {
+    T parse(String clientValue, Locale locale) throws ParseException;
+}
+```
+
+要创建自己的Formatter,，只需实现上面的Formatter 接口。T参数是要格式化的对象的类型，例如java.util.Date。实现print（）操作来打印T的实例以在客户端语言环境中显示。实现parse（）操作，从客户端语言环境返回的格式化表示中解析T的一个实例。如果解析尝试失败，则格式化程序应该抛出ParseException或IllegalArgumentException。注意确保您的Formatter实现是线程安全的
+
+为了方便起见，format子程序包中提供了几个Formatter实现。number包提供了一个NumberFormatter，CurrencyFormatter和PercentFormatter使用java.text.NumberFormat的java.lang.Number对象来格式化。 datetime包提供了一个DateFormatter用java.text.DateFormat格式化java.util.Date对象。 datetime.joda包提供基于 [Joda Time library](http://joda-time.sourceforge.net/).的综合日期时间格式化支持。
+
+以DateFormatter为例：
+
+```
+package org.springframework.format.datetime;
+
+public final class DateFormatter implements Formatter<Date> {
+
+    private String pattern;
+
+    public DateFormatter(String pattern) {
+        this.pattern = pattern;
+    }
+
+    public String print(Date date, Locale locale) {
+        if (date == null) {
+            return "";
+        }
+        return getDateFormat(locale).format(date);
+    }
+
+    public Date parse(String formatted, Locale locale) throws ParseException {
+        if (formatted.length() == 0) {
+            return null;
+        }
+        return getDateFormat(locale).parse(formatted);
+    }
+
+    protected DateFormat getDateFormat(Locale locale) {
+        DateFormat dateFormat = new SimpleDateFormat(this.pattern, locale);
+        dateFormat.setLenient(false);
+        return dateFormat;
+    }
 
 }
 ```
