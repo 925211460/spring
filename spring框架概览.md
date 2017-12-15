@@ -5962,3 +5962,97 @@ public final class RegisterUserController extends SimpleFormController {
 ```
 
 这种PropertyEditor注册的风格可以实现简洁的代码（initBinder（..）的实现只是一行！），并允许将常见的PropertyEditor注册代码封装在一个类中，然后根据需要在众多Controllers之间共享。
+
+## 3.5 spring类型转换
+
+Spring 3引入了一个core.convert包，提供了一个通用的类型转换系统。系统定义了一个SPI来实现类型转换逻辑，以及一个在运行时执行类型转换的API。在一个Spring容器中，这个系统可以用来替代PropertyEditors来将外部化的bean属性值String转换为所需的属性类型。公共API也可以在需要进行类型转换的应用程序中使用。
+
+### 3.5.1转换器SPI
+
+实现类型转换逻辑的SPI是简单而强类型的：
+
+```java
+package org.springframework.core.convert.converter;
+
+public interface Converter<S, T> {
+
+    T convert(S source);
+
+}
+```
+
+要创建自己的转换器，只需实现上面的接口。将S指定为源类型，将T指定为目标类型。如果S类型的集合或者数组需要被转换为T类型的数组或者集合的话，这样的转换器也可以被透明地应用，前提是委托的数组/收集转换器也被注册（这件事由DefaultConversionService默认执行）。
+
+对于每个convert(S)方法，源参数要保证不为空。如果转换失败，您的Converter可能会抛出任何未经检查的异常;具体而言，应抛出IllegalArgumentException异常来报告无效的源值。注意确保您的Converter实现是线程安全的。
+
+为方便起见，在core.convert.support包中提供了几个转换器实现。这些包括从字符串到数字和其他常见类型的转换器。以StringToInteger作为典型的Converter实现的例子：
+
+```java
+package org.springframework.core.convert.support;
+
+final class StringToInteger implements Converter<String, Integer> {
+
+    public Integer convert(String source) {
+        return Integer.valueOf(source);
+    }
+
+}
+```
+
+### 3.5.2. ConverterFactory
+
+当您需要集中整个类层次结构的转换逻辑时，例如，从String转换为java.lang.Enum对象时，那么就实现ConverterFactory：
+
+```java
+package org.springframework.core.convert.converter;
+
+public interface ConverterFactory<S, R> {
+
+    <T extends R> Converter<S, T> getConverter(Class<T> targetType);
+
+}
+```
+
+将S指定为要转换的类型，将R指定为可以转换为的类的范围的基本类型。然后实现getConverter（Class <T>），其中T是R的子类。
+
+以StringToEnum ConverterFactory为例：
+
+```java
+package org.springframework.core.convert.support;
+
+final class StringToEnumConverterFactory implements ConverterFactory<String, Enum> {
+
+    public <T extends Enum> Converter<String, T> getConverter(Class<T> targetType) {
+        return new StringToEnumConverter(targetType);
+    }
+
+    private final class StringToEnumConverter<T extends Enum> implements Converter<String, T> {
+
+        private Class<T> enumType;
+
+        public StringToEnumConverter(Class<T> enumType) {
+            this.enumType = enumType;
+        }
+
+        public T convert(String source) {
+            return (T) Enum.valueOf(this.enumType, source.trim());
+        }
+    }
+}
+```
+
+### 3.5.3. GenericConverter
+
+当您需要复杂的Converter实现时，请考虑GenericConverter接口。因为这个接口使用更灵活而且弱类型的签名，所以GenericConverter支持在多个源类型和目标类型之间进行转换。此外，GenericConverter还提供了在实现转换逻辑时可以使用的source and target field context。这样的上下文允许类型转换由字段注释或在字段签名上声明的通用信息来驱动。
+
+```
+package org.springframework.core.convert.converter;
+
+public interface GenericConverter {
+
+    public Set<ConvertiblePair> getConvertibleTypes();
+
+    Object convert(Object source, TypeDescriptor sourceType, TypeDescriptor targetType);
+
+}
+```
