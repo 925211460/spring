@@ -1,4 +1,4 @@
-
+jk
 
 # spring框架概览
 
@@ -6252,3 +6252,1231 @@ public final class DateFormatter implements Formatter<Date> {
 
 }
 ```
+Spring团队欢迎社区驱动的Formatter贡献;见 [jira.spring.io](https://jira.spring.io/browse/SPR)贡献。
+
+### 3.6.2注释驱动的格式
+
+您将会看到，field formatting可以通过field type或注释进行配置。要将注释绑定到formatter，请实现AnnotationFormatterFactory：
+
+```java
+package org.springframework.format;
+
+public interface AnnotationFormatterFactory<A extends Annotation> {
+
+    Set<Class<?>> getFieldTypes();
+
+    Printer<?> getPrinter(A annotation, Class<?> fieldType);
+
+    Parser<?> getParser(A annotation, Class<?> fieldType);
+
+}
+```
+
+参数化A是您希望将格式化逻辑与之关联的字段注释类型，例如org.springframework.format.annotation.DateTimeFormat。 getFieldTypes（）返回具有A注解的字段的类型。getPrinter（）返回一个Printer来打印注释字段的值。getParser（）返回一个Parser来解析一个注释字段的clientValue。
+
+下面的示例AnnotationFormatterFactory实现将@NumberFormat注释绑定到formatter。此注释允许指定number style或pattern：
+
+```java
+public final class NumberFormatAnnotationFormatterFactory
+        implements AnnotationFormatterFactory<NumberFormat> {
+
+    public Set<Class<?>> getFieldTypes() {
+        return new HashSet<Class<?>>(asList(new Class<?>[] {
+            Short.class, Integer.class, Long.class, Float.class,
+            Double.class, BigDecimal.class, BigInteger.class }));
+    }
+
+    public Printer<Number> getPrinter(NumberFormat annotation, Class<?> fieldType) {
+        return configureFormatterFrom(annotation, fieldType);
+    }
+
+    public Parser<Number> getParser(NumberFormat annotation, Class<?> fieldType) {
+        return configureFormatterFrom(annotation, fieldType);
+    }
+
+    private Formatter<Number> configureFormatterFrom(NumberFormat annotation,
+            Class<?> fieldType) {
+        if (!annotation.pattern().isEmpty()) {
+            return new NumberFormatter(annotation.pattern());
+        } else {
+            Style style = annotation.style();
+            if (style == Style.PERCENT) {
+                return new PercentFormatter();
+            } else if (style == Style.CURRENCY) {
+                return new CurrencyFormatter();
+            } else {
+                return new NumberFormatter();
+            }
+        }
+    }
+}
+```
+
+要触发格式化，只需使用@NumberFormat注释字段即可：
+
+```java
+public class MyModel {
+
+    @NumberFormat(style=Style.CURRENCY)
+    private BigDecimal decimal;
+
+}
+```
+
+#### Format Annotation API
+
+org.springframework.format.annotation包中存在可移植的 format annotation API。使用@NumberFormat格式化java.lang.Number字段。使用@DateTimeFormat格式化java.util.Date，java.util.Calendar，java.util.Long或Joda时间字段。
+
+下面的示例使用@DateTimeFormat将java.util.Date格式化为ISO日期（yyyy-MM-dd）：
+
+```java
+public class MyModel {
+
+    @DateTimeFormat(iso=ISO.DATE)
+    private Date date;
+
+}
+```
+
+### 3.6.3. FormatterRegistry SPI
+
+FormatterRegistry是用于注册formatters和converters的SPI。 FormattingConversionService是适用于大多数环境的FormatterRegistry的一个实现。这个实现可以使用FormattingConversionServiceFactoryBean以编程方式或以声明方式配置为Spring bean。因为这个实现也实现了ConversionService，所以它可以直接配置用于Spring的DataBinder和Spring表达式语言（SpEL）。
+
+查看下面的FormatterRegistry SPI：
+
+```java
+package org.springframework.format;
+
+public interface FormatterRegistry extends ConverterRegistry {
+
+    void addFormatterForFieldType(Class<?> fieldType, Printer<?> printer, Parser<?> parser);
+
+    void addFormatterForFieldType(Class<?> fieldType, Formatter<?> formatter);
+
+    void addFormatterForFieldType(Formatter<?> formatter);
+
+    void addFormatterForAnnotation(AnnotationFormatterFactory<?, ?> factory);
+
+}
+```
+
+如上所示，Formatter可以通过fieldType或注解进行注册。
+
+FormatterRegistry SPI允许您集中配置格式化规则，而不是在controller中复制这样的配置。例如，您可能希望强制所有Date字段以特定方式格式化，或者以特定方式格式化具有特定注释的字段。使用共享的FormatterRegistry，您可以只定义这些规则一次，并在需要格式化时应用这些规则。
+
+### 3.6.4. FormatterRegistrar SPI
+
+FormatterRegistrar是用于通过FormatterRegistry注册 formatters and converters的SPI：
+
+```java
+package org.springframework.format;
+
+public interface FormatterRegistrar {
+
+    void registerFormatters(FormatterRegistry registry);
+
+}
+```
+
+FormatterRegistrar对于为给定转换类型（如日期格式）注册多个相关的converters and formatters很有用。在声明性注册不足的情况下也是有用的。例如， formatters需要在与自己的<T>不同的特定字段类型下进行索引，或者在注册Printer/Parser对时进行索引。下一节提供有关converter and formatter 注册的更多信息。
+
+### 3.6.5. Configuring Formatting in Spring MVC
+
+See [Conversion and Formatting](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/web.html#mvc-config-conversion) in the Spring MVC chapter.
+
+### 3.7. Configuring a global date & time format
+
+默认情况下，未使用@DateTimeFormat注释的日期和时间字段使用DateFormat.SHORT样式从字符串转换。如果你愿意，你可以通过定义你自己的全局格式来改变它。
+
+您需要确保Spring不会注册默认formatters，而应该手动注册所有格式化程序。根据您是否使用Joda时间库，使用org.springframework.format.datetime.joda.JodaTimeFormatterRegistrar或org.springframework.format.datetime.DateFormatterRegistrar类。
+
+例如，下面的Java配置将会注册一个全局的“yyyyMMdd”格式。这个例子不依赖于Joda时间库：
+
+```java
+@Configuration
+public class AppConfig {
+
+    @Bean
+    public FormattingConversionService conversionService() {
+
+        // Use the DefaultFormattingConversionService but do not register defaults
+        DefaultFormattingConversionService conversionService = new DefaultFormattingConversionService(false);
+
+        // Ensure @NumberFormat is still supported
+        conversionService.addFormatterForFieldAnnotation(new NumberFormatAnnotationFormatterFactory());
+
+        // Register date conversion with a specific global format
+        DateFormatterRegistrar registrar = new DateFormatterRegistrar();
+        registrar.setFormatter(new DateFormatter("yyyyMMdd"));
+        registrar.registerFormatters(conversionService);
+
+        return conversionService;
+    }
+}
+```
+
+如果您更喜欢基于XML的配置，则可以使用FormattingConversionServiceFactoryBean。这里是同样的例子，这次使用乔达时间：
+
+```java
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd>
+
+    <bean id="conversionService" class="org.springframework.format.support.FormattingConversionServiceFactoryBean">
+        <property name="registerDefaultFormatters" value="false" />
+        <property name="formatters">
+            <set>
+                <bean class="org.springframework.format.number.NumberFormatAnnotationFormatterFactory" />
+            </set>
+        </property>
+        <property name="formatterRegistrars">
+            <set>
+                <bean class="org.springframework.format.datetime.joda.JodaTimeFormatterRegistrar">
+                    <property name="dateFormatter">
+                        <bean class="org.springframework.format.datetime.joda.DateTimeFormatterFactoryBean">
+                            <property name="pattern" value="yyyyMMdd"/>
+                        </bean>
+                    </property>
+                </bean>
+            </set>
+        </property>
+    </bean>
+</beans>
+```
+
+Joda Time 提供单独的不同类型来表示`date`, `time` and `date-time`。应该使用JodaTimeFormatterRegistrar的dateFormatter，timeFormatter和dateTimeFormatter属性为每种类型配置不同的格式。 DateTimeFormatterFactoryBean提供了创建格式化程序的简便方法。
+
+如果您使用的是Spring MVC，请记住明确地配置使用的conversion service。对于基于Java的@Configuration，这意味着扩展WebMvcConfigurationSupport类并覆盖mvcConversionService（）方法。对于XML，您应该使用mvc：annotation-driven元素的“conversion-service”属性。有关详细信息，请参阅[Conversion and Formatting](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/web.html#mvc-config-conversion) 。
+
+## 3.8. Spring Validation
+
+Spring 3引入了对其validation支持的一些增强。首先，现在完全支持JSR-303 Bean验证API。其次，当以编程方式使用时，Spring的DataBinder现在可以验证对象并绑定到它们。第三，Spring MVC现在支持声明性验证@Controller输入。
+
+### 3.8.1 JSR-303 Bean验证API概述
+
+JSR-303标准化了Java平台的验证约束声明和元数据。使用此API，您可以使用声明性验证约束来注释domain模型属性，并且运行时会强制执行它们。有许多内置的约束可以利用。您也可以定义您自己的自定义约束。
+
+为了说明，请考虑一个简单的具有两个属性的PersonForm模型：
+
+```java
+public class PersonForm {
+    private String name;
+    private int age;
+}
+```
+
+JSR-303允许你定义对这些属性使用声明性验证约束：
+
+```java
+public class PersonForm {
+
+    @NotNull
+    @Size(max=64)
+    private String name;
+
+    @Min(0)
+    private int age;
+
+}
+```
+
+当这个类的一个实例被JSR-303验证器验证时，这些约束将被执行。
+
+有关JSR-303 / JSR-349的一般信息，请参阅 [Bean Validation website](http://beanvalidation.org/)。有关默认参考实现的特定功能的信息，请参阅 [Hibernate Validator](https://www.hibernate.org/412.html)文档。要学习如何将Bean Validation提供者设置为Spring bean，请继续阅读。
+
+### 3.8.2. Configuring a Bean Validation Provider
+
+Spring提供对Bean Validation API的全面支持。这包括引导JSR-303 / JSR-349  Bean Validation provider作为Spring bean的支持。这允许在您的应用程序需要验证的任何地方注入javax.validation.ValidatorFactory或javax.validation.Validator。
+
+使用LocalValidatorFactoryBean将默认的Validator配置为一个Spring bean：
+
+```xml
+<bean id="validator"
+    class="org.springframework.validation.beanvalidation.LocalValidatorFactoryBean"/>
+```
+
+上面的基本配置将触发Bean Validation使用其默认引导机制进行初始化。 JSR-303 / JSR-349 provider（如Hibernate Validator）需要在类路径中，并会自动检测到。
+
+#### Injecting a Validator
+
+LocalValidatorFactoryBean实现了javax.validation.ValidatorFactory和javax.validation.Validator，以及Spring的org.springframework.validation.Validator。您可以将这些接口的引用注入到需要调用验证逻辑的bean中。
+
+如果您希望直接使用 Bean Validation API，则注入对javax.validation.Validator的**引用：**
+
+```java
+import javax.validation.Validator;
+
+@Service
+public class MyService {
+
+    @Autowired
+    private Validator validator;
+```
+
+如果您的bean需要Spring Validation API，则注入对org.springframework.validation.Validator的引用：
+
+```java
+import org.springframework.validation.Validator;
+
+@Service
+public class MyService {
+
+    @Autowired
+    private Validator validator;
+
+}
+```
+
+#### Configuring Custom Constraints
+
+每个Bean Validation约束由两部分组成。首先，一个@Constraint注解，声明约束及其可配置的属性。其次，实现约束行为的javax.validation.ConstraintValidator接口的实现。为了将一个声明和一个实现关联起来，每个@Constraint注解引用一个对应的ValidationConstraint实现类。在运行时，ConstraintValidatorFactory在您的domain模型中遇到约束注释时实例化所引用的实现。
+
+默认情况下，LocalValidatorFactoryBean配置一个使用Spring创建ConstraintValidator实例的SpringConstraintValidatorFactory。这种方式可以使你的自定义ConstraintValidators像任何其他Spring bean一样依赖注入容器中的其它bean。
+
+下面显示了一个自定义@Constraint声明的示例，后面跟着一个使用Spring进行依赖注入的相关ConstraintValidator实现：
+
+```java
+@Target({ElementType.METHOD, ElementType.FIELD})
+@Retention(RetentionPolicy.RUNTIME)
+@Constraint(validatedBy=MyConstraintValidator.class)
+public @interface MyConstraint {
+}
+```
+
+```java
+import javax.validation.ConstraintValidator;
+
+public class MyConstraintValidator implements ConstraintValidator {
+
+    @Autowired;
+    private Foo aDependency;
+
+    ...
+}
+```
+
+正如你所看到的，一个ConstraintValidator实现可能像其他任何Spring bean一样拥有依赖@Autowired。
+
+#### Spring-driven Method Validation
+
+Bean Validation 1.1支持的方法验证功能以及Hibernate Validator 4.3的自定义扩展可以通过一个MethodValidationPostProcessor bean定义集成到Spring上下文中：
+
+```xml
+<bean class="org.springframework.validation.beanvalidation.MethodValidationPostProcessor"/>
+```
+
+为了符合Spring驱动的方法验证的条件，所有的目标类都需要使用Spring的@Validated注解，也可以选择使用 validation groups 。使用Hibernate Validator和Bean Validation 1.1 provider 请查看MethodValidationPostProcessor javadoc以了解设置细节。
+
+#### 其他配置选项
+
+在大多数情况下，默认的LocalValidatorFactoryBean配置应该足够了。对于各种Bean验证结构，有许多配置选项，从消息插值到遍历分辨率。有关这些选项的更多信息，请参阅LocalValidatorFactoryBean javadocs。
+
+### 3.8.3. Configuring a DataBinder
+
+从Spring 3开始，可以使用Validator配置一个DataBinder实例。配置完成后，可以通过调用binder.validate（）来调用Validator。任何验证错误都会自动添加到binder’s BindingResult中。
+
+以编程方式使用DataBinder时，可以在绑定到目标对象后调用验证逻辑：
+
+```java
+Foo target = new Foo();
+DataBinder binder = new DataBinder(target);
+binder.setValidator(new FooValidator());
+
+// bind to the target object
+binder.bind(propertyValues);
+
+// validate the target object
+binder.validate();
+
+// get BindingResult that includes any validation errors
+BindingResult results = binder.getBindingResult();
+```
+
+DataBinder也可以通过dataBinder.addValidators和dataBinder.replaceValidators配置多个Validator实例。将全局配置的Bean验证与本地在DataBinder实例上配置的Spring验证器相结合时，这非常有用。参见 [[validation-mvc-configuring\]](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#validation-mvc-configuring).。
+
+### 3.8.4. Spring MVC 3 Validation
+
+请参阅Spring MVC章节中的[Validation](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/web.html#mvc-config-validation)。
+
+# 4. Spring Expression Language (SpEL)
+
+## 4.1介绍
+
+
+
+Spring表达式语言（简称SpEL）是一种强大的表达式语言，支持在运行时查询和操作对象图。语言语法与Unified EL相似，但是提供了额外的功能，特别是方法调用和基本字符串模板功能。
+
+虽然还有其他几种可用的Java表达式语言，OGNL，MVEL和JBoss EL（仅举几个例子），Spring表达式语言的创建是为了向Spring社区提供单一支持的表达式语言，这种语言可以在所有spring产品中使用。它的语言特性是由Spring项目中的项目需求驱动的，例如在基于Eclipse的Spring Tool Suite项目中支持代码补全的工具需求。也就是说，SpEL基于一种技术无关的API，允许在需要时集成其他表达式语言实现。
+
+虽然SpEL是Spring产品组合中表达式评估的基础，但它并不与Spring直接相关，可以独立使用。为了自成一体，本章中的许多例子都使用SpEL，就好像它是独立的表达式语言一样。这需要创建一些引导基础结构类，比如解析器。大多数Spring用户不需要处理这个基础结构，而只需要编写用于评估的表达式字符串。这种典型用法的一个例子是将SpEL集成到创建XML或基于注释的bean定义中，如 [Expression support for defining bean definitions](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#expressions-beandef)所示。
+
+本章介绍了表达式语言，API及其语言语法的特性。在一些地方， Inventor and Inventor’s Society class被用作表达评估的目标对象。这些类声明和用来填充它们的数据在本章最后列出。
+
+## 4.2功能概述
+
+表达式语言支持以下功能
+
+- 文字表达式
+- 布尔和关系运算符
+- 正则表达式
+- 类表达式
+- 访问properties, arrays, lists, maps
+- 方法调用
+- 关系运算符
+- Assignment
+- 调用构造函数
+- Bean引用
+- Array construction
+- 内联列表
+- 内联map
+- 三元操作符
+- 变量\
+- 用户定义的功能
+- Collection projection
+- Collection selection
+- 模板化的表达式
+
+## 4.3使用Spring的Expression接口进行表达式评估
+
+本节介绍SpEL接口的简单使用及其 expression language。完整的语言参考可以在 [Language Reference](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#expressions-language-ref)一节中找到。
+
+以下代码引入了SpEL API来评估文字字符串表达式“Hello World”。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+Expression exp = parser.parseExpression("'Hello World'");
+String message = (String) exp.getValue();
+```
+
+message变量的值只是“Hello World”。
+
+您最可能使用的SpEL类和接口位于包org.springframework.expression及其子包和spel.support中。
+
+ExpressionParser接口负责解析表达式字符串。在这个例子中，表达式字符串是由周围的单引号表示的字符串文字。接口Expression负责评估前面定义的表达式字符串。当分别调用parser.parseExpression和exp.getValue时，可能会抛出两个异常，ParseException和EvaluationException。
+
+SpEL支持广泛的功能，例如调用方法，访问属性和调用构造函数。
+
+作为方法调用的一个例子，我们在字符串上调用concat方法。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+Expression exp = parser.parseExpression("'Hello World'.concat('!')");
+String message = (String) exp.getValue();
+```
+
+message的值现在是“Hello World！”。
+
+作为调用JavaBean属性的一个例子，可以调用String属性Bytes，如下所示。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+
+// invokes 'getBytes()'
+Expression exp = parser.parseExpression("'Hello World'.bytes");
+byte[] bytes = (byte[]) exp.getValue();
+```
+
+SpEL还支持使用标准点符号的嵌套属性，即prop1.prop2.prop3和属性值的设置.public的属性可以被访问。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+
+// invokes 'getBytes().length'
+Expression exp = parser.parseExpression("'Hello World'.bytes.length");
+int length = (Integer) exp.getValue();
+```
+
+字符串的构造函数也可以被调用，而不是使用字符串文字。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+Expression exp = parser.parseExpression("new String('hello world').toUpperCase()");
+String message = exp.getValue(String.class);
+```
+
+注意使用通用方法public <T> T getValue（Class <T> desiredResultType）。使用此方法不需要将表达式的值强制转换为所需的结果类型。如果值不能转换为类型T或使用注册类型转换器转换，则会抛出EvaluationException异常。
+
+SpEL更常见的用法是提供一个针对特定对象实例（称为根对象）的表达式字符串。这里有两个选项，选择哪一个取决于表达式被评估的对象是否随每次调用而改变以评估表达式。在以下示例中，我们从Inventor类的实例中检索name属性。
+
+```java
+// Create and set a calendar
+GregorianCalendar c = new GregorianCalendar();
+c.set(1856, 7, 9);
+
+// The constructor arguments are name, birthday, and nationality.
+Inventor tesla = new Inventor("Nikola Tesla", c.getTime(), "Serbian");
+
+ExpressionParser parser = new SpelExpressionParser();
+Expression exp = parser.parseExpression("name");
+
+EvaluationContext context = new StandardEvaluationContext(tesla);
+String name = (String) exp.getValue(context);
+```
+
+在最后一行中，字符串变量name的值将被设置为“Nikola Tesla”。 StandardEvaluationContext类可以指定哪个对象的“name”属性将被评估。如果根对象不太可能改变，使用的机制就是评估上下文中可以简单地在设置一次。如果根对象可能会重复更改，则可以在每次调用getValue时提供该对象，如下面的示例所示：
+
+```java
+/ Create and set a calendar
+GregorianCalendar c = new GregorianCalendar();
+c.set(1856, 7, 9);
+
+// The constructor arguments are name, birthday, and nationality.
+Inventor tesla = new Inventor("Nikola Tesla", c.getTime(), "Serbian");
+
+ExpressionParser parser = new SpelExpressionParser();
+Expression exp = parser.parseExpression("name");
+String name = (String) exp.getValue(tesla);
+```
+
+在这种情况下，inventor tesla直接提供给getValue，表达式评估基础设施在内部创建和管理默认的evaluation context - 它不需要提供。
+
+StandardEvaluationContext的构建相对昂贵，在重复使用过程中，它建立了缓存状态，使后续的表达式评估能够更快地执行。为此，最好在可能的地方缓存和重用它们，而不是为每个表达式评估构建一个新的。
+
+在某些情况下，可能需要使用配置的评估上下文，但仍然在每次调用getValue时提供不同的根对象。 getValue允许在同一个调用中指定两者。在这些情况下，在调用中传递的根对象将被视为覆盖评估上下文中指定的任何（可能为null）对象。
+
+[^在SpEL的独立使用中，需要创建parser, parse expressions，并可能还需要提供evaluation contexts and a root context object。但是，更常见的用法是只提供SpEL表达式字符串作为配置文件的一部分，例如Spring bean或Spring Web Flow定义。在这种情况下，the parser, evaluation context, root object和任何预定义的变量都是隐式设置的，允许用户除了表达式之外什么也不用指定。]: 
+
+作为最后的介绍性例子，使用Inventor对象显示了一个布尔运算符的使用。
+
+```java
+Expression exp = parser.parseExpression("name == 'Nikola Tesla'");
+boolean result = exp.getValue(context, Boolean.class); // evaluates to true
+```
+
+### 4.3.1. The EvaluationContext interface
+
+评估expression 以解析 properties, methods, fields并帮助执行类型转换时，将使用接口EvaluationContext。开箱即用的实现StandardEvaluationContext使用反射来操纵对象，并缓存java.lang.reflect.Method，java.lang.reflect.Field和java.lang.reflect.Constructor实例，以提高性能。
+
+StandardEvaluationContext可以通过setRootObject（）方法或者将根对象传递给构造函数来指定根对象。您还可以使用方法setVariable（）和registerFunction（）指定将在表达式中使用的variables and functions。变量和函数的使用在 [Variables](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#expressions-ref-variables) and [Functions](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#expressions-ref-functions)的语言参考章节中有描述。 StandardEvaluationContext也可以注册自定义的ConstructorResolvers，MethodResolvers和PropertyAccessors来扩展SpEL如何评估表达式。请参阅这些类的javadoc获取更多细节。
+
+#### Type conversion
+
+默认情况下，SpEL使用Spring核心（org.springframework.core.convert.ConversionService）中提供的转换服务。这种 conversion service附带了许多内置的转换器，可以进行常规转换，但也是完全可扩展的，因此可以添加类型之间的自定义转换。此外，它具有识别泛型的关键能力。这意味着，当在表达式中使用泛型类型时，SpEL将尝试转换并保证转换的任何对象的类型正确性。
+
+这在实践中意味着什么？假设assignment被用来设置List属性，使用setValue（）。该属性的类型实际上是List <Boolean>。 SpEL将认识到列表中的元素在被放置之前需要被转换为布尔值。一个简单的例子：、
+
+```java
+class Simple {
+    public List<Boolean> booleanList = new ArrayList<Boolean>();
+}
+
+Simple simple = new Simple();
+
+simple.booleanList.add(true);
+
+StandardEvaluationContext simpleContext = new StandardEvaluationContext(simple);
+
+// false is passed in here as a string. SpEL and the conversion service will
+// correctly recognize that it needs to be a Boolean and convert it
+parser.parseExpression("booleanList[0]").setValue(simpleContext, "false");
+
+// b will be false
+Boolean b = simple.booleanList.get(0);
+```
+
+### 4.3.2. Parser configuration
+
+可以使用parser configuration对象（org.springframework.expression.spel.SpelParserConfiguration）来配置SpEL表达式parser。配置对象控制一些表达式组件的行为。例如，如果指定数组或集合中的索引，并且指定索引处的元素为空，则可以自动创建该元素。当使用由一系列属性引用组成的表达式时，这非常有用。如果指定数组或集合中的索引，并且这个索引超出数组或列表当前大小，则可以自动增大数组或列表以适应该索引。
+
+```java
+class Demo {
+    public List<String> list;
+}
+
+// Turn on:
+// - auto null reference initialization
+// - auto collection growing
+SpelParserConfiguration config = new SpelParserConfiguration(true,true);
+
+ExpressionParser parser = new SpelExpressionParser(config);
+
+Expression expression = parser.parseExpression("list[3]");
+
+Demo demo = new Demo();
+
+Object o = expression.getValue(demo);
+
+// demo.list will now be a real collection of 4 entries
+// Each entry is a new empty String
+```
+
+也可以配置SpEL表达式compiler的行为。
+
+### 4.3.3. SpEL compilation
+
+Spring Framework 4.1包含一个基本的expression compiler。表达式通常认为在evaluation 过程中提供了很大的动态灵活性，但不能提供最佳的性能。对于偶然的表达用法，这是很好的，但是当像Spring Integration这样的其他组件使用时，性能可能非常重要，并且不需要动态性。
+
+新的SpEL编译器旨在解决这一需求。编译器将在评估过程中动态生成一个真正的Java类，它体现了表达式行为，并用它来实现更快的表达式评估。由于缺少对表达式的类型信息，编译器在执行编译时使用在表达式的解释评估期间收集的信息。例如，它不能完全从表达式中知道属性引用的类型，但是在第一次解释评估期间，它将查明它是什么。当然，如果各种表达式元素的类型随着时间的推移而变化，那么以这些信息为基础的汇编文件可能会引起麻烦。出于这个原因，compilation 最适合于在重复评估中类型信息不会改变的表达式。
+
+对于像这样的基本表达式：
+
+someArray[0].someProperty.someOtherProperty < 0.1
+
+涉及到数组访问，一些属性嵌套引用和数字操作，性能增益可以非常明显。在一个50000次迭代的微小基准测试中，如果只使用解释器就花了75ms的时间，而使用表达式的编译版本仅花费3ms。
+
+#### 编译器配置
+
+编译器默认情况下不打开，但有两种方法可以打开它。可以使用前面讨论过的parser configuration 过程打开它，或者当SpEL用法嵌入到另一个组件内时，可以通过系统属性打开它。本节讨论这两个选项。
+
+了解编译器可以运行的几种模式很重要，可以在枚举中获得（org.springframework.expression.spel.SpelCompilerMode）。模式如下：
+
+OFF  - 编译器关闭;这是默认的。
+
+IMMEDIATE  - 即时模式下，表达式即时编译。这通常是在第一次解释评估之后。如果编译的表达式失败（通常是由于类型改变，如上所述），那么表达式评估的调用者将会收到一个异常。
+
+MIXED  - 在混合模式下，表达式会随着时间的推移在解释模式(OFF)和编译模式(IMMEDIATE )之间悄悄切换。经过一段解释运行后，它们将切换到编译形式，如果编译形式出现问题（如上面描述的类型改变），则表达式将自动切换回解释形式。稍后它可能会生成另一个编译的形式并切换到它。基本上，用户进入IMMEDIATE模式的异常是在内部处理的。
+
+IMMEDIATE模式存在是因为混合模式可能会导致有副作用的表达式的问题。如果编译后的表达式在部分成功后发生异常，可能已经做了一些影响系统状态的事情。如果发生这种情况，调用者可能不希望它以转换到解释模式静默地重新运行，因为表达式的一部分可能会运行两次。
+
+选择模式之后，使用SpelParserConfiguration来配置解析器：
+
+```java
+SpelParserConfiguration config = new SpelParserConfiguration(SpelCompilerMode.IMMEDIATE,
+    this.getClass().getClassLoader());
+
+SpelExpressionParser parser = new SpelExpressionParser(config);
+
+Expression expr = parser.parseExpression("payload");
+
+MyMessage message = new MyMessage();
+
+Object payload = expr.getValue(message);
+```
+
+当指定编译器模式时，也可以指定一个类加载器（允许传递null）。编译的表达式将在所提供的子类加载器中定义。确保是否指定的类加载器是否可以查看表达式评估过程中涉及的所有类型是非常重要的。如果没有指定，则将使用默认的类加载器（通常是表达式评估期间运行的线程的上下文类加载器）。
+
+配置编译器的第二种方法是在SpEL嵌入到其他组件中时使用，并且可能无法通过配置对象进行配置。在这些情况下，可以使用系统属性。属性spring.expression.compiler.mode可以设置为其中一个SpelCompilerMode枚举值（off，immediate或mixed）。
+
+#### 编译器限制
+
+使用Spring Framework 4.1，基本的编译框架已经到位。但是，框架还不支持编译各种表达式。最初的重点是可能用于性能关键环境的常见表达式。目前无法编译这些表达式：
+
+- expressions involving assignment
+- expressions relying on the conversion service
+- expressions using custom resolvers or accessors
+- expressions using selection or projection
+
+## 4.4. Expression support for defining bean definitions
+
+SpEL表达式可以与XML或者基于注解的配置元数据一起使用来定义BeanDefinitions。在这两种情况下，定义表达式的语法都是这种形式`#{ <expression string> }`.
+
+### 4.4.1 基于XML的配置
+
+```xml
+<bean id="numberGuess" class="org.spring.samples.NumberGuess">
+    <property name="randomNumber" value="#{ T(java.lang.Math).random() * 100.0 }"/>
+
+    <!-- other properties -->
+</bean>
+```
+
+变量systemProperties是预定义的，所以你可以在你的表达式中使用它，如下所示。请注意，您不必为预定义变量添加前缀#
+
+```xml
+<bean id="taxCalculator" class="org.spring.samples.TaxCalculator">
+    <property name="defaultLocale" value="#{ systemProperties['user.region'] }"/>
+
+    <!-- other properties -->
+</bean>
+```
+
+例如，您也可以通过name引用其他bean属性。
+
+```xml
+<bean id="numberGuess" class="org.spring.samples.NumberGuess">
+    <property name="randomNumber" value="#{ T(java.lang.Math).random() * 100.0 }"/>
+
+    <!-- other properties -->
+</bean>
+
+<bean id="shapeGuess" class="org.spring.samples.ShapeGuess">
+    <property name="initialShapeSeed" value="#{ numberGuess.randomNumber }"/>
+
+    <!-- other properties -->
+</bean>
+```
+
+### 4.4.2基于注释的配置
+
+@Value注释可以放在字段，方法和方法/构造函数参数上，以指定默认值。
+
+这是一个设置字段变量默认值的例子。
+
+```java
+public static class FieldValueTestBean
+
+    @Value("#{ systemProperties['user.region'] }")
+    private String defaultLocale;
+
+    public void setDefaultLocale(String defaultLocale) {
+        this.defaultLocale = defaultLocale;
+    }
+
+    public String getDefaultLocale() {
+        return this.defaultLocale;
+    }
+
+}
+```
+
+下面显示了等价但属性setter方法。
+
+```java
+public static class PropertyValueTestBean
+
+    private String defaultLocale;
+
+    @Value("#{ systemProperties['user.region'] }")
+    public void setDefaultLocale(String defaultLocale) {
+        this.defaultLocale = defaultLocale;
+    }
+
+    public String getDefaultLocale() {
+        return this.defaultLocale;
+    }
+
+}
+```
+
+Autowired 的方法和构造函数也可以使用@Value注解。
+
+```java
+public class SimpleMovieLister {
+
+    private MovieFinder movieFinder;
+    private String defaultLocale;
+
+    @Autowired
+    public void configure(MovieFinder movieFinder,
+            @Value("#{ systemProperties['user.region'] }") String defaultLocale) {
+        this.movieFinder = movieFinder;
+        this.defaultLocale = defaultLocale;
+    }
+
+    // ...
+}
+```
+
+```java
+public class MovieRecommender {
+
+    private String defaultLocale;
+
+    private CustomerPreferenceDao customerPreferenceDao;
+
+    @Autowired
+    public MovieRecommender(CustomerPreferenceDao customerPreferenceDao,
+            @Value("#{systemProperties['user.country']}") String defaultLocale) {
+        this.customerPreferenceDao = customerPreferenceDao;
+        this.defaultLocale = defaultLocale;
+    }
+
+    // ...
+}
+```
+
+## 4.5. Language Reference
+
+### 4.5.1 Literal expressions
+
+支持的literal expressions的类型是 strings, numeric values (int, real, hex), boolean and null。字符串由单引号分隔。要将一个单引号本身放在一个字符串中，请使用两个单引号字符。
+
+下面的清单显示了literals的简单用法。通常，它们不会像这样孤立地使用，而是作为更复杂表达式的一部分，例如在逻辑比较运算符的一侧使用literals。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+
+// evals to "Hello World"
+String helloWorld = (String) parser.parseExpression("'Hello World'").getValue();
+
+double avogadrosNumber = (Double) parser.parseExpression("6.0221415E+23").getValue();
+
+// evals to 2147483647
+int maxValue = (Integer) parser.parseExpression("0x7FFFFFFF").getValue();
+
+boolean trueValue = (Boolean) parser.parseExpression("true").getValue();
+
+Object nullValue = parser.parseExpression("null").getValue();
+```
+
+数字支持使用负号，指数表示法和小数点。默认情况下，实数使用Double.parseDouble（）进行分析。
+
+### 4.5.2. Properties, Arrays, Lists, Maps, Indexers
+
+使用属性引用进行导航很简单：只需使用句点来指示嵌套的属性值即可。对于Inventor类，pupin和tesla的实例中填入了[Classes used in the examples](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#expressions-example-classes)一节中列出的数据。为了“向下”导航并得到Tesla’s的出生年份和Pupin’s的出生城市，使用下列表达式。
+
+```java
+// evals to 1856
+int year = (Integer) parser.parseExpression("Birthdate.Year + 1900").getValue(context);
+
+String city = (String) parser.parseExpression("placeOfBirth.City").getValue(context);
+```
+
+对于属性名称的第一个字母，不区分大小写。数组和列表的内容使用方括号表示法获得。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+
+// Inventions Array
+StandardEvaluationContext teslaContext = new StandardEvaluationContext(tesla);
+
+// evaluates to "Induction motor"
+String invention = parser.parseExpression("inventions[3]").getValue(
+        teslaContext, String.class);
+
+// Members List
+StandardEvaluationContext societyContext = new StandardEvaluationContext(ieee);
+
+// evaluates to "Nikola Tesla"
+String name = parser.parseExpression("Members[0].Name").getValue(
+        societyContext, String.class);
+
+// List and Array navigation
+// evaluates to "Wireless communication"
+String invention = parser.parseExpression("Members[0].Inventions[6]").getValue(
+        societyContext, String.class);
+```
+
+通过指定括号内的文字key来获得maps的内容。在这种情况下，因为map的关键字是字符串，所以我们可以指定字符串文字。
+
+```java
+// Officer's Dictionary
+
+Inventor pupin = parser.parseExpression("Officers['president']").getValue(
+        societyContext, Inventor.class);
+
+// evaluates to "Idvor"
+String city = parser.parseExpression("Officers['president'].PlaceOfBirth.City").getValue(
+        societyContext, String.class);
+
+// setting values
+parser.parseExpression("Officers['advisors'][0].PlaceOfBirth.Country").setValue(
+        societyContext, "Croatia");
+```
+
+### 4.5.3. Inline lists
+
+列表可以使用{}表示法直接在表达式中表达。
+
+```java
+// evaluates to a Java list containing the four numbers
+List numbers = (List) parser.parseExpression("{1,2,3,4}").getValue(context);
+
+List listOfLists = (List) parser.parseExpression("{{'a','b'},{'x','y'}}").getValue(context);
+```
+
+{}本身意味着一个空的列表。出于性能原因，如果列表本身完全由固定文字组成，则会创建一个常量列表来表示表达式，而不是在每个评估中创建一个新列表。
+
+### 4.5.4. Inline Maps
+
+也可以使用{key：value}符号直接表达map。
+
+```java
+// evaluates to a Java map containing the two entries
+Map inventorInfo = (Map) parser.parseExpression("{name:'Nikola',dob:'10-July-1856'}").getValue(context);
+
+Map mapOfMaps = (Map) parser.parseExpression("{name:{first:'Nikola',last:'Tesla'},dob:{day:10,month:'July',year:1856}}").getValue(context);
+```
+
+{：}本身就是空的地图。出于性能原因，如果地图本身是由固定文字或其他嵌套的常量结构（列表或地图）组成的，则会创建一个常量map来表示表达式，而不是在每个评估中构建一个新的map。map键的引号是可选的，上面的例子不使用带引号的键。
+
+### 4.5.5. Array construction
+
+可以使用熟悉的Java语法构建数组，可以选择提供一个初始化程序来在构造时填充该数组。
+
+```java
+int[] numbers1 = (int[]) parser.parseExpression("new int[4]").getValue(context);
+
+// Array with initializer
+int[] numbers2 = (int[]) parser.parseExpression("new int[]{1,2,3}").getValue(context);
+
+// Multi dimensional array
+int[][] numbers3 = (int[][]) parser.parseExpression("new int[4][5]").getValue(context);
+```
+
+在构建多维数组时，目前不允许提供初始化程序。
+
+### 4.5.6. Methods
+
+使用典型的Java编程语法调用方法。你也可以调用文字方法。可变参数也被支持。
+
+```java
+// string literal, evaluates to "bc"
+String bc = parser.parseExpression("'abc'.substring(1, 3)").getValue(String.class);
+
+// evaluates to true
+boolean isMember = parser.parseExpression("isMember('Mihajlo Pupin')").getValue(
+        societyContext, Boolean.class);
+```
+
+### 4.5.7. Operators
+
+#### 关系运算符
+
+关系运算符;相等，不等于，小于，小于或等于，大于，大于等于支持使用标准的操作符号。
+
+```java
+// evaluates to true
+boolean trueValue = parser.parseExpression("2 == 2").getValue(Boolean.class);
+
+// evaluates to false
+boolean falseValue = parser.parseExpression("2 < -5.0").getValue(Boolean.class);
+
+// evaluates to true
+boolean trueValue = parser.parseExpression("'black' < 'block'").getValue(Boolean.class);
+```
+
+[^大于/小于和null比较遵循一个简单的规则，：null在这里被视为没有（即不为零）。因此，任何其他值总是大于空（X > null始终未true），并且没有其他值永远小于null（X < null总是为false）。]: 如果您更喜欢数字比较，请避免基于数字的null比较，以便与零比较（例如，X> 0或X <0）。
+
+除了标准的关系运算符外，SpEL还支持基于instanceof和正则表达式的匹配运算符。
+
+```java
+// evaluates to false
+boolean falseValue = parser.parseExpression(
+        "'xyz' instanceof T(Integer)").getValue(Boolean.class);
+
+// evaluates to true
+boolean trueValue = parser.parseExpression(
+        "'5.00' matches '\^-?\\d+(\\.\\d{2})?$'").getValue(Boolean.class);
+
+//evaluates to false
+boolean falseValue = parser.parseExpression(
+        "'5.0067' matches '\^-?\\d+(\\.\\d{2})?$'").getValue(Boolean.class);
+```
+
+小心原始类型，因为它们立即装箱到包装类型，所以如预期的那样，1 instanceof T（int）的计算结果为false，而1 instanceof T（Integer）的计算结果为true。
+
+每个符号运算符也可以被指定为纯粹的字母等效。这避免了所使用的符号对嵌入表达式的文档类型（例如，XML文档）具有特殊含义的问题。在这里显示了文本等价物：lt（<），gt（>），le（⇐），ge（> =），eq（==），ne（！=），div（/），mod（％),not（！）。这些是不区分大小写的。
+
+#### 逻辑运算符
+
+支持的逻辑运算符是and, or,和 not。以下说明它们的用途。
+
+```java
+// -- AND --
+
+// evaluates to false
+boolean falseValue = parser.parseExpression("true and false").getValue(Boolean.class);
+
+// evaluates to true
+String expression = "isMember('Nikola Tesla') and isMember('Mihajlo Pupin')";
+boolean trueValue = parser.parseExpression(expression).getValue(societyContext, Boolean.class);
+
+// -- OR --
+
+// evaluates to true
+boolean trueValue = parser.parseExpression("true or false").getValue(Boolean.class);
+
+// evaluates to true
+String expression = "isMember('Nikola Tesla') or isMember('Albert Einstein')";
+boolean trueValue = parser.parseExpression(expression).getValue(societyContext, Boolean.class);
+
+// -- NOT --
+
+// evaluates to false
+boolean falseValue = parser.parseExpression("!true").getValue(Boolean.class);
+
+// -- AND and NOT --
+String expression = "isMember('Nikola Tesla') and !isMember('Mihajlo Pupin')";
+boolean falseValue = parser.parseExpression(expression).getValue(societyContext, Boolean.class);
+```
+
+#### 数学运算符
+
+加法运算符可以用于数字和字符串。减法，乘法和除法只能用于数字。其他支持的数学运算符是模数（％）和指数幂（^）。标准运算符优先级被强制执行。下面演示这些操作符。
+
+```java
+// Addition
+int two = parser.parseExpression("1 + 1").getValue(Integer.class); // 2
+
+String testString = parser.parseExpression(
+        "'test' + ' ' + 'string'").getValue(String.class); // 'test string'
+
+// Subtraction
+int four = parser.parseExpression("1 - -3").getValue(Integer.class); // 4
+
+double d = parser.parseExpression("1000.00 - 1e4").getValue(Double.class); // -9000
+
+// Multiplication
+int six = parser.parseExpression("-2 * -3").getValue(Integer.class); // 6
+
+double twentyFour = parser.parseExpression("2.0 * 3e0 * 4").getValue(Double.class); // 24.0
+
+// Division
+int minusTwo = parser.parseExpression("6 / -3").getValue(Integer.class); // -2
+
+double one = parser.parseExpression("8.0 / 4e0 / 2").getValue(Double.class); // 1.0
+
+// Modulus
+int three = parser.parseExpression("7 % 4").getValue(Integer.class); // 3
+
+int one = parser.parseExpression("8 / 5 % 2").getValue(Integer.class); // 1
+
+// Operator precedence
+int minusTwentyOne = parser.parseExpression("1+2-3*8").getValue(Integer.class); // -21
+```
+
+### 4.5.8. Assignment
+
+属性的设置是通过使用赋值操作符完成的。这通常在setValue调用中完成，但也可以在getValue调用中完成。
+
+```java
+Inventor inventor = new Inventor();
+StandardEvaluationContext inventorContext = new StandardEvaluationContext(inventor);
+
+parser.parseExpression("Name").setValue(inventorContext, "Alexander Seovic2");
+
+// alternatively
+
+String aleks = parser.parseExpression(
+        "Name = 'Alexandar Seovic'").getValue(inventorContext, String.class);
+```
+
+### 4.5.9. Types
+
+特殊的T运算符可以用来指定java.lang.Class（类型）的一个实例。静态方法也使用这个操作符来调用。 StandardEvaluationContext使用TypeLocator来查找类型，并且可以通过了解java.lang包来构建StandardTypeLocator（可以被替换）。这意味着T（）对java.lang中的类型的引用不需要完全限定，但所有其他类型引用必须完全限定包名。
+
+```java
+Class dateClass = parser.parseExpression("T(java.util.Date)").getValue(Class.class);
+
+Class stringClass = parser.parseExpression("T(String)").getValue(Class.class);
+
+boolean trueValue = parser.parseExpression(
+        "T(java.math.RoundingMode).CEILING < T(java.math.RoundingMode).FLOOR")
+        .getValue(Boolean.class);
+```
+
+### 4.5.10. Constructors
+
+可以使用new运算符调用构造函数。除了基本类型和字符串（可以使用int，float等）之外，全限定的类名应该被使用。
+
+```java
+Inventor einstein = p.parseExpression(
+        "new org.spring.samples.spel.inventor.Inventor('Albert Einstein', 'German')")
+        .getValue(Inventor.class);
+
+//create new inventor instance within add method of List
+p.parseExpression(
+        "Members.add(new org.spring.samples.spel.inventor.Inventor(
+            'Albert Einstein', 'German'))").getValue(societyContext);
+```
+
+### 4.5.11. Variables
+
+可以使用语法 `#variableName`在表达式中引用变量。变量是使用StandardEvaluationContext上的setVariable方法设置的。
+
+```java
+Inventor tesla = new Inventor("Nikola Tesla", "Serbian");
+StandardEvaluationContext context = new StandardEvaluationContext(tesla);
+context.setVariable("newName", "Mike Tesla");
+
+parser.parseExpression("Name = #newName").getValue(context);
+
+System.out.println(tesla.getName()) // "Mike Tesla"
+```
+
+#### The #this and #root variables
+
+The variable #this is always defined and refers to the current evaluation object (against which unqualified references are resolved). The variable #root is always defined and refers to the root context object. Although #this may vary as components of an expression are evaluated, #root always refers to the root.
+
+```java
+// create an array of integers
+List<Integer> primes = new ArrayList<Integer>();
+primes.addAll(Arrays.asList(2,3,5,7,11,13,17));
+
+// create parser and set variable 'primes' as the array of integers
+ExpressionParser parser = new SpelExpressionParser();
+StandardEvaluationContext context = new StandardEvaluationContext();
+context.setVariable("primes",primes);
+
+// all prime numbers > 10 from the list (using selection ?{...})
+// evaluates to [11, 13, 17]
+List<Integer> primesGreaterThanTen = (List<Integer>) parser.parseExpression(
+        "#primes.?[#this>10]").getValue(context);
+```
+
+### 4.5.12. Functions
+
+您可以通过注册可在表达式字符串内调用的用户定义函数来扩展SpEL。该函数使用StandardEvaluationContext的方法注册。
+
+```
+public void registerFunction(String name, Method m)
+```
+
+对Java Method的引用提供了该函数的实现。例如，反转字符串的实用程序方法如下所示。
+
+```java
+public abstract class StringUtils {
+
+    public static String reverseString(String input) {
+        StringBuilder backwards = new StringBuilder();
+        for (int i = 0; i < input.length(); i++)
+            backwards.append(input.charAt(input.length() - 1 - i));
+        }
+        return backwards.toString();
+    }
+}
+```
+
+然后将此方法注册到评估上下文，并可在表达式字符串中使用。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+StandardEvaluationContext context = new StandardEvaluationContext();
+
+context.registerFunction("reverseString",
+    StringUtils.class.getDeclaredMethod("reverseString", new Class[] { String.class }));
+
+String helloWorldReversed = parser.parseExpression(
+    "#reverseString('hello')").getValue(context, String.class);
+```
+
+### 4.5.13. Bean references
+
+如果已经使用bean解析器配置了评估上下文，则可以使用（@）符号从表达式中查找bean。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+StandardEvaluationContext context = new StandardEvaluationContext();
+context.setBeanResolver(new MyBeanResolver());
+
+// This will end up calling resolve(context,"foo") on MyBeanResolver during evaluation
+Object bean = parser.parseExpression("@foo").getValue(context);
+```
+
+为了访问一个工厂bean本身，bean的名字应该用一个&前缀
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+StandardEvaluationContext context = new StandardEvaluationContext();
+context.setBeanResolver(new MyBeanResolver());
+
+// This will end up calling resolve(context,"&foo") on MyBeanResolver during evaluation
+Object bean = parser.parseExpression("&foo").getValue(context);
+```
+
+### 4.5.14三元运算符（If-Then-Else）
+
+您可以使用三元运算符来执行表达式中的if-then-else条件逻辑。一个最小的例子是：
+
+```java
+String falseString = parser.parseExpression(
+        "false ? 'trueExp' : 'falseExp'").getValue(String.class);
+```
+
+在这种情况下，布尔值false将返回字符串值“falseExp”。下面显示了一个更现实的例子。
+
+```java
+parser.parseExpression("Name").setValue(societyContext, "IEEE");
+societyContext.setVariable("queryName", "Nikola Tesla");
+
+expression = "isMember(#queryName)? #queryName + ' is a member of the ' " +
+        "+ Name + ' Society' : #queryName + ' is not a member of the ' + Name + ' Society'";
+
+String queryResultString = parser.parseExpression(expression)
+        .getValue(societyContext, String.class);
+// queryResultString = "Nikola Tesla is a member of the IEEE Society"
+```
+
+另请参阅下一节Elvis运算符，以获取三元运算符的更简短的语法。
+
+### 4.5.15. The Elvis Operator
+
+Elvis运算符缩短了三元运算符的语法，并在Groovy语言中使用。使用三元运算符语法，通常必须重复两次变量，例如：
+
+```java
+String name = "Elvis Presley";
+String displayName = name != null ? name : "Unknown";
+```
+
+相反，你可以使用 Elvis 操作符。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+
+String name = parser.parseExpression("name?:'Unknown'").getValue(String.class);
+
+System.out.println(name); // 'Unknown'
+```
+
+这是一个更复杂的例子。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+
+Inventor tesla = new Inventor("Nikola Tesla", "Serbian");
+StandardEvaluationContext context = new StandardEvaluationContext(tesla);
+
+String name = parser.parseExpression("Name?:'Elvis Presley'").getValue(context, String.class);
+
+System.out.println(name); // Nikola Tesla
+
+tesla.setName(null);
+
+name = parser.parseExpression("Name?:'Elvis Presley'").getValue(context, String.class);
+
+System.out.println(name); // Elv
+```
+
+### 4.5.16. Safe Navigation operator
+
+Safe Navigation operator用于避免NullPointerException，并来自Groovy语言。通常当你有一个对象的引用时，你可能需要在访问对象的方法或属性之前验证它是否为空。为了避免这种情况，安全导航操作符将简单地返回null而不是抛出异常。
+
+```java
+ExpressionParser parser = new SpelExpressionParser();
+
+Inventor tesla = new Inventor("Nikola Tesla", "Serbian");
+tesla.setPlaceOfBirth(new PlaceOfBirth("Smiljan"));
+
+StandardEvaluationContext context = new StandardEvaluationContext(tesla);
+
+String city = parser.parseExpression("PlaceOfBirth?.City").getValue(context, String.class);
+System.out.println(city); // Smiljan
+
+tesla.setPlaceOfBirth(null);
+
+city = parser.parseExpression("PlaceOfBirth?.City").getValue(context, String.class);
+
+System.out.println(city); //
+```
+
+```java
+Elvis可以用于在表达式中应用默认值，例如，在@Value表达式中：
+@Value("#{systemProperties['pop3.port'] ?: 25}")
+这将注入一个系统属性pop3.port如果定义了，如果没有则赋值25。
+```
+
+### 4.5.17. Collection Selection
+
+选择是一个强大的表达式语言功能，允许您通过从源集合中选择一些元素转换成另一个。
+
+Selection使用语法.?[selectionExpression]。这将过滤集合并返回包含原始元素子集的新集合。例如，Selection可以让我们很容易地得到一个Serbian inventors的集合：
+
+```java
+List<Inventor> list = (List<Inventor>) parser.parseExpression(
+        "Members.?[Nationality == 'Serbian']").getValue(societyContext);
+```
+
+在list和map上都可以进行选择。在前一种情况下，针对每个单独的列表元素评估选择标准，同时针对map，针对每个entry（Java类型Map.Entry的对象）评估选择标准。entry的键和值可以在选择中用作属性。
+
+这个表达式将返回一个新的map，这个map包含了原始map中那些entry值小于27的元素。
+
+```java
+Map newMap = parser.parseExpression("map.?[value<27]").getValue();
+```
+
+除了返回所有选定的元素外，还可以检索第一个或最后一个值。要获得与选择匹配的第一个条目，语法是^ [...]，同时为了获得最后的匹配选择，语法是$ [...]。
+
+### 4.5.18. Collection Projection
+
+投影允许集合驱动子表达式的评估，结果是一个新的集合。投影的语法是！[projectionExpression]。例如，最容易理解的是，假设我们有一个inventors  list，但想要他们出生的city list。实际上，我们希望为inventors  list中的每个条目评估“placeOfBirth.city”。使用投影：
+
+```java
+// returns ['Smiljan', 'Idvor' ]
+List placesOfBirth = (List)parser.parseExpression("Members.![placeOfBirth.city]");
+```
+
+也可以使用map来驱动投影，在这种情况下，会根据地图中的每个entry评估投影表达式（表示为Java Map.Entry）。在map上投影的结果是由对每个map entry的投影表达式的评估组成的列表。
