@@ -7480,3 +7480,296 @@ List placesOfBirth = (List)parser.parseExpression("Members.![placeOfBirth.city]"
 ```
 
 也可以使用map来驱动投影，在这种情况下，会根据地图中的每个entry评估投影表达式（表示为Java Map.Entry）。在map上投影的结果是由对每个map entry的投影表达式的评估组成的列表。
+
+### 4.5.19. Expression templating
+
+表达式模板允许将文本与一个或多个evaluation blocks混合。每个evaluation block都可以用你定义的前缀和后缀字符分隔，常见的选择是使用 `#{ }`，例如，
+
+```java
+String randomPhrase = parser.parseExpression(
+        "random number is #{T(java.lang.Math).random()}",
+        new TemplateParserContext()).getValue(String.class);
+
+// evaluates to "random number is 0.7038186818312008"
+```
+
+最后解析的字符串是“random number is”与在{ }分隔符中的表达式评估结果连接得到的，在这种情况下表达式评估的结果是调用random（）方法的结果。方法parseExpression（）的第二个参数的类型是ParserContext。 ParserContext接口用于影响如何解析表达式以支持表达式模板功能。 TemplateParserContext的定义如下所示。
+
+```java
+public class TemplateParserContext implements ParserContext {
+
+    public String getExpressionPrefix() {
+        return "#{";
+    }
+
+    public String getExpressionSuffix() {
+        return "}";
+    }
+
+    public boolean isTemplate() {
+        return true;
+    }
+}
+```
+
+## 4.6示例中使用的Classs
+
+```java
+package org.spring.samples.spel.inventor;
+
+import java.util.Date;
+import java.util.GregorianCalendar;
+
+public class Inventor {
+
+    private String name;
+    private String nationality;
+    private String[] inventions;
+    private Date birthdate;
+    private PlaceOfBirth placeOfBirth;
+
+    public Inventor(String name, String nationality) {
+        GregorianCalendar c= new GregorianCalendar();
+        this.name = name;
+        this.nationality = nationality;
+        this.birthdate = c.getTime();
+    }
+
+    public Inventor(String name, Date birthdate, String nationality) {
+        this.name = name;
+        this.nationality = nationality;
+        this.birthdate = birthdate;
+    }
+
+    public Inventor() {
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getNationality() {
+        return nationality;
+    }
+
+    public void setNationality(String nationality) {
+        this.nationality = nationality;
+    }
+
+    public Date getBirthdate() {
+        return birthdate;
+    }
+
+    public void setBirthdate(Date birthdate) {
+        this.birthdate = birthdate;
+    }
+
+    public PlaceOfBirth getPlaceOfBirth() {
+        return placeOfBirth;
+    }
+
+    public void setPlaceOfBirth(PlaceOfBirth placeOfBirth) {
+        this.placeOfBirth = placeOfBirth;
+    }
+
+    public void setInventions(String[] inventions) {
+        this.inventions = inventions;
+    }
+
+    public String[] getInventions() {
+        return inventions;
+    }
+}
+```
+
+PlaceOfBirth.java
+
+```java
+package org.spring.samples.spel.inventor;
+
+public class PlaceOfBirth {
+
+    private String city;
+    private String country;
+
+    public PlaceOfBirth(String city) {
+        this.city=city;
+    }
+
+    public PlaceOfBirth(String city, String country) {
+        this(city);
+        this.country = country;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String s) {
+        this.city = s;
+    }
+
+    public String getCountry() {
+        return country;
+    }
+
+    public void setCountry(String country) {
+        this.country = country;
+    }
+
+}
+```
+
+Society.java
+
+```java
+package org.spring.samples.spel.inventor;
+
+import java.util.*;
+
+public class Society {
+
+    private String name;
+
+    public static String Advisors = "advisors";
+    public static String President = "president";
+
+    private List<Inventor> members = new ArrayList<Inventor>();
+    private Map officers = new HashMap();
+
+    public List getMembers() {
+        return members;
+    }
+
+    public Map getOfficers() {
+        return officers;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public boolean isMember(String name) {
+        for (Inventor inventor : members) {
+            if (inventor.getName().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+}
+```
+
+# 5.面向方面编程Spring
+
+## 5.1介绍
+
+面向方面编程（AOP）通过提供另一种思考程序结构的方式来补充面向对象编程（OOP）。 OOP中模块化的关键单元是类，而AOP中模块化的单元是 *aspect*。 Aspects可以使某些关注点模块化，例如跨越多种类型和对象的事务管理。 （这种关注点在AOP文献中常常被称为横切关注点。）
+
+AOP框架是Spring的关键组件之一。虽然Spring IoC容器不依赖于AOP，也就是说，如果您不想使用AOP，那么AOP就是Spring IoC的补充，可以提供非常强大的中间件解决方案。
+
+​                                                                      Spring 2.0+ AOP
+
+Spring 2.0引入了使用 [schema-based approach](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-schema)或 [@AspectJ annotation style](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-ataspectj)来编写自定义切面的更简单和更强大的方法。这两种风格都提供fully typed 通知和使用AspectJ pointcut language，同时仍然使用Spring AOP进行编程。
+
+本章将讨论Spring 2.0+ schema和@AspectJ的AOP支持。 [the following chapter](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-api)将讨论Spring 1.2应用程序中通常公开的较低级别的AOP支持。
+
+AOP被用在Spring框架中
+
+- ...提供声明性企业服务，特别是作为EJB声明式服务的替代品。最重要的服务是声明式事务管理。
+- ...允许用户实现自定义的切面，作为面向对象的OOP的补充。
+
+```
+如果您只对通用声明式服务或其他预先打包的声明式中间件服务（例如池）感兴趣，则不需要直接使用Spring AOP，可以跳过本章的大部分内容。
+```
+
+### 5.1.1 AOP的概念
+
+让我们从定义一些中心的AOP概念和术语开始。这些术语不是特定于Spring的...不幸的是，AOP术语并不是特别直观，然而，如果spring使用自己的术语，那将更加令人困惑。
+
+   1）连接点（Joinpoint
+
+​    程序执行的某个特定位置：如类开始初始化前、类初始化后、类某个方法调用前、调用后、方法抛出异常后。一个类或一段程序代码拥有一些具有边界性质的特定点，这些点中的特定点就称为“连接点”。Spring仅支持方法的连接点，即仅能在方法调用前、方法调用后、方法抛出异常时以及方法调用前后这些程序执行点织入通知。连接点由两个信息确定：第一是用方法表示的程序执行点；第二是用相对点表示的方位。
+
+ 
+
+   2）切点（Pointcut）
+
+​    每个程序类都拥有多个连接点，如一个拥有两个方法的类，这两个方法都是连接点，即连接点是程序类中客观存在的事物。AOP通过“切点”定位特定的连接点。连接点相当于数据库中的记录，而切点相当于查询条件。切点和连接点不是一对一的关系，一个切点可以匹配多个连接点。在Spring中，切点通过org.springframework.aop.Pointcut接口进行描述，它使用类和方法作为连接点的查询条件，Spring AOP的规则解析引擎负责切点所设定的查询条件，找到对应的连接点。其实确切地说，不能称之为查询连接点，因为连接点是方法执行前、执行后等包括方位信息的具体程序执行点，而切点只定位到某个方法上，所以如果希望定位到具体连接点上，还需要提供方位信息。
+
+用于匹配连接点。通知与切入点表达式相关联，并在切入点匹配的任何连接点（例如，执行具有特定名称的方法）上运行。与切入点表达式匹配的连接点的概念是AOP的核心，Spring默认使用AspectJ切入点表达式语言。
+
+ 
+
+3）通知（Advice）
+
+​    通知是织入到目标类连接点上的一段程序代码，在Spring中，通知除用于描述一段程序代码外，还拥有另一个和连接点相关的信息，这便是执行点的方位。结合执行点方位信息和切点信息，我们就可以找到特定的连接点。
+
+一个通知在特定连接点采取的行为。不同类型的通知包括 "around," "before" and "after" 。 （通知类型将在下面讨论。）许多AOP框架，包括Spring，都将通知建模为拦截器，在连接点周围维护一个拦截器链。
+
+ 
+
+4）目标对象（Target）
+
+​    通知逻辑的织入目标类。如果没有AOP，目标业务类需要自己实现所有逻辑，而在AOP的帮助下，目标业务类只实现那些非横切逻辑的程序逻辑，而性能监视和事务管理等这些横切逻辑则可以使用AOP动态织入到特定的连接点上。
+
+ 
+
+5）引介（Introduction）
+
+​    引介是一种特殊的通知，它为类添加一些属性和方法。这样，即使一个业务类原本没有实现某个接口，通过AOP的引介功能，我们可以动态地为该业务类添加接口的实现逻辑，让业务类成为这个接口的实现类。    
+
+ 
+
+6）织入（Weaving）
+
+​    织入是将通知添加对目标类具体连接点上的过程。AOP像一台织布机，将目标类、通知或引介通过AOP这台织布机天衣无缝地编织到一起。根据不同的实现技术，AOP有三种织入的方式：
+
+​    a、编译期织入，这要求使用特殊的Java编译器。
+
+​    b、类装载期织入，这要求使用特殊的类装载器。
+
+​    c、动态代理织入，在运行期为目标类添加通知生成子类的方式。
+
+​    Spring采用动态代理织入，而AspectJ采用编译期织入和类装载期织入。
+
+ 
+
+7）代理（Proxy）
+
+​    一个类被AOP织入通知后，就产出了一个结果类，它是融合了原类和通知逻辑的代理类。根据不同的代理方式，代理类既可能是和原类具有相同接口的类，也可能就是原类的子类，所以我们可以采用调用原类相同的方式调用代理类。
+
+ 
+
+8）切面（Aspect）
+
+​    切面由切点和通知（引介）组成，它既包括了横切逻辑的定义，也包括了连接点的定义，Spring AOP就是负责实施切面的框架，它将切面所定义的横切逻辑织入到切面所指定的连接点中。
+
+事务管理是企业Java应用程序中切面关注的一个很好的例子。在Spring AOP中，切面是使用常规类（[schema-based approach](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-schema)）或使用@Aspect注释（the [`@AspectJ` style](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-ataspectj)）进行注释的常规类来实现的。
+
+aspect类型：
+
+*Before advice*：在连接点之前执行的advice，但是无法阻止执行流程继续到连接点（除非抛出异常）。
+
+*After returning advice*：在一个连接点正常完成后要执行的通知：例如，如果一个方法返回而没有抛出异常。
+
+*After throwing advice*：如果方法抛出一个异常将被执行的通知。
+
+*After (finally) advice*：无论切入点退出的方式（正常或异常退回），都会执行的建议。
+
+*Around advice*：围绕连接点（如方法调用）的通知。这是最强有力的通知。around的通知可以在方法调用之前和之后执行自定义行为。它还负责选择是继续执行连接点，还是通过返回自己的返回值或引发异常来加速通知的方法执行。
+
+Around advice是最通用的通知。由于Spring AOP和AspectJ一样，提供了一整套的通知类型，我们建议您使用能够实现所需行为的最具体的通知类型。例如，如果只需要用方法的返回值来更新缓存，则最好是实现一个after returning advice而不是一个around通知，尽管around通知可以完成同样的事情。使用最具体的建议类型提供了一个更简单的编程模型，而且错误的可能性更小。例如，你不需要调用JoinPoint中的用于around通知的proceed（）方法，因此也就自然不会失败了。
+
+在Spring 2.0中，所有的通知参数都是静态类型的，所以你可以使用适当类型的通知参数（例如来自方法执行的返回值的类型）而不是对象数组。
+
+与切入点相匹配的连接点的概念，是AOP的关键，这个概念区别于仅提供拦截的旧技术。切入点使通知可以独立于面向对象的层次结构进行设定。例如，提供声明式事务管理的around通知可以应用于跨多个对象的一组方法（例如服务层中的所有业务操作）。
