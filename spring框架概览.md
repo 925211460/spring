@@ -1,4 +1,4 @@
-jk
+
 
 # spring框架概览
 
@@ -7773,3 +7773,138 @@ Around advice是最通用的通知。由于Spring AOP和AspectJ一样，提供�
 在Spring 2.0中，所有的通知参数都是静态类型的，所以你可以使用适当类型的通知参数（例如来自方法执行的返回值的类型）而不是对象数组。
 
 与切入点相匹配的连接点的概念，是AOP的关键，这个概念区别于仅提供拦截的旧技术。切入点使通知可以独立于面向对象的层次结构进行设定。例如，提供声明式事务管理的around通知可以应用于跨多个对象的一组方法（例如服务层中的所有业务操作）。
+
+### 5.1.2 Spring AOP的功能和目标
+
+Spring AOP是用纯Java实现的。不需要特殊的编译过程。 Spring AOP不需要控制类加载器层次结构，因此适用于Servlet容器或应用application server。
+
+Spring AOP目前仅支持method execution连接点（建议Spring bean上的方法的执行）。虽然可以在不破坏核心Spring AOP API的情况下添加对field拦截的支持，但不会实现field拦截。如果您需要建议field访问并更新连接点，请考虑使用诸如AspectJ之类的语言。
+
+Spring AOP的AOP实现与其他大多数AOP框架不同。它的目标不是提供最完整的AOP实现（尽管Spring AOP是相当有能力的）;而是提供AOP实现和Spring IoC之间的紧密集成，以帮助解决企业应用程序中的常见问题。
+
+因此，例如，Spring框架的AOP功能通常与Spring IoC容器一起使用。切面使用正常的bean定义语法进行配置（尽管这允许强大的“自动代理”功能）：这是与其他AOP实现的关键区别。有些事情你不能用Spring AOP轻松或有效地完成，比如advise非常细粒度的对象（比如domain对象）：在这种情况下，AspectJ是最好的选择。但是，我们的经验是，Spring AOP为适用于AOP的企业Java应用程序中的大多数问题提供了极好的解决方案。
+
+Spring AOP将永远不会为了与AspectJ竞争而提供全面的AOP解决方案。我们认为像Spring AOP这样的基于代理的框架和像AspectJ这样的全面的框架都是有价值的，而且它们是互补的，而不是竞争。 Spring将Spring AOP和IoC与AspectJ无缝集成，以便在一致的基于Spring的应用程序体系结构中满足AOP的所有用途。此集成不影响Spring AOP API或AOP Alliance API：Spring AOP保持向后兼容。有关Spring AOP API的讨论，请参阅 [the following chapter](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-api)。
+
+```
+Spring框架的核心原则之一是非侵入性：这意味着你不应该被迫在你的business/domain模型中引入框架特定的类和接口。然而，在一些地方，Spring框架的确给你选择将Spring框架特定的依赖项引入到你的代码库中：给你这样的选项的理由是因为在某些情况下，以这种方式阅读或者编写一些特定的功能更加简单。 Spring框架（几乎）总是为您提供选择：您可以自由决定哪个选项最适合您的特定用例或场景。
+与本章相关的一个选择是AOP框架（以及AOP风格）的选择。您可以选择AspectJ和/或Spring AOP，也可以选择@AspectJ注释风格的实现或Spring XML配置风格的实现。本章首先选择引入@AspectJ风格的实现，但这不应该被认为Spring组织更加支持支持@AspectJ注解风格的实现。
+```
+
+请参阅 [Choosing which AOP declaration style to use](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-choosing)来更全面地讨论使用每种风格的原因。
+
+### 5.1.3AOP代理
+
+Spring AOP默认使用标准JDK动态代理生成AOP代理。这使得任何接口（或一组接口）都可以被代理。
+
+Spring AOP也可以使用CGLIB代理。当代理类而不是接口时必须使用CGLIB。如果业务对象没有实现接口，则默认使用CGLIB。根据接口而不是类编程是个好习惯;所以业务类通常会实现一个或多个业务接口。但是也可以强制使用CGLIB，在需要通知未在接口中声明的方法的情况下（很少建议），或者需要将代理对象作为具体类型传递给方法的情况下，使用这种方式。
+
+掌握Spring AOP是基于代理的事实是很重要的。请参阅 [Understanding AOP proxies](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-understanding-aop-proxies) ，以彻底检查此实现细节的实际含义。
+
+## 5.2. @AspectJ support
+
+@AspectJ是指将切面声明为带有注解的常规Java类的风格。 AspectJ项目引入了@AspectJ风格，作为AspectJ 5版本的一部分。 Spring使用AspectJ提供的用于切入点解析和匹配的库可以像AspectJ 5一样解析相关的注释。 AOP运行时仍然是纯粹的Spring AOP，并且不依赖于AspectJ编译器或编织器。
+
+使用AspectJ编译器和编织器可以使用完整的AspectJ语言，在 [Using AspectJ with Spring applications](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-using-aspectj)进行了讨论。
+
+### 5.2.1启用@AspectJ支持
+
+要在Spring配置中使用@AspectJ切面，您需要启用Spring支持基于@AspectJ切面配置Spring AOP，以及支持autoproxying bean根据这些bean是否被切面通知。对于autoproxying我们的意思是，如果Spring确定一个bean被一个或多个切面通知，它会自动生成一个代理来拦截方法调用，并确保在需要时执行通知。
+
+@AspectJ支持可以使用XML或Java风格的配置来启用。无论哪种情况，您都需要确保AspectJ的aspectjweaver.jar库位于应用程序的classpath（1.6.8或更高版本）上。这个库可以在AspectJ发行版的'lib'目录下或者通过Maven Central版本库获得。
+
+#### 使用Java配置启用@AspectJ支持
+
+```java
+@Configuration
+@EnableAspectJAutoProxy
+public class AppConfig {
+
+}
+```
+
+#### 使用XML配置启用@AspectJ支持
+
+```xml
+<aop:aspectj-autoproxy/>
+```
+
+这假定您正在使用如[XML Schema-based configuration](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#xsd-schemas)中所述的schema 。请参阅[the AOP schema](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#xsd-schemas-aop)以了解如何在aop名称空间中导入标记。
+
+### 5.2.2声明一个方面
+
+在启用@AspectJ支持的情况下，在您的应用程序上下文中定义的任何bean，并且是@AspectJ切面的类将被Spring自动检测到，并用于配置Spring AOP。以下示例显示了一个不太有用的切面所需的最小定义：
+
+应用程序上下文中的常规bean定义，指向具有@Aspect注释的bean类：
+
+```xml
+<bean id="myAspect" class="org.xyz.NotVeryUsefulAspect">
+    <!-- configure properties of aspect here as normal -->
+</bean>
+```
+
+NotVeryUsefulAspect类定义，使用org.aspectj.lang.annotation.Aspect注解;
+
+```java
+package org.xyz;
+import org.aspectj.lang.annotation.Aspect;
+
+@Aspect
+public class NotVeryUsefulAspect {
+
+}
+```
+
+方面（用@Aspect注解的类）可能与其他类相似也具有方法和字段。它们也可能包含切入点，通知和介绍（类型间）声明。
+
+```
+通过组件扫描自动检测切面
+您可以在Spring XML配置中将切面类注册为常规bean，或者像通过其他Spring管理的bean一样通过类路径扫描来自动检测它们。但是，请注意，@Aspect注释对于类路径中的自动检测是不够的：为此，您需要添加一个单独的@Component注释（或者按照Spring组件扫描器的规则，添加一个自定义构造型注释）。
+
+为其他切面提供通知？
+在Spring AOP中，不可能将切面本身作为其他切面的通知的目标。类上的@Aspect注释将其标记为一个切面，因此这个类将不能被自动代理。
+```
+
+### 5.2.3声明一个切入点
+
+回想一下，切入点决定了感兴趣的连接点，从而使我们能够控制何时执行通知。 Spring AOP只支持Spring bean的方法执行连接点，所以你可以把一个切入点视为匹配Spring bean上方法的执行。切入点声明包含两部分：一部分是包含名称和任何参数的方法签名，另一部分是确定我们感兴趣的方法执行点的切入点表达式。在@AspectJ注释样式的AOP中，切入点签名由常规方法定义提供，并且使用@Pointcut注释来指示切入点表达式（用作切入点签名的方法必须具有void返回类型）。
+
+一个例子将有助于区分切入点签名和切入点表达式之间的区别。以下示例定义了一个名为'anyOldTransfer'的切入点，该切入点将匹配任何名为'transfer'的方法的执行：
+
+```java
+@Pointcut("execution(* transfer(..))")// the pointcut expression
+private void anyOldTransfer() {}// the pointcut signature
+```
+
+构成@Pointcut注释value的切入点表达式是一个常规的AspectJ 5切入点表达式。有关AspectJ的切入点语言的完整讨论，请参阅[AspectJ Programming Guide](https://www.eclipse.org/aspectj/doc/released/progguide/index.html)（以及用于扩展的 [AspectJ 5 Developers Notebook](https://www.eclipse.org/aspectj/doc/released/adk15notebook/index.html)）或AspectJ的其中一本书，如Colyer等的“Eclipse AspectJ”。或Ramnivas Laddad的“AspectJ in Action”。
+
+#### 支持的切入点指示符
+
+```
+                                                            其他切入点类型
+
+完整的AspectJ切入点语言支持Spring中不支持的附加的切入点指示符。这些是call, get, set, preinitialization, staticinitialization, initialization, handler, adviceexecution, withincode, cflow, cflowbelow, if, @this, and @withincode。在由Spring AOP解释的切入点表达式中使用这些切入点指示符将导致抛出IllegalArgumentException。
+Spring AOP支持的一系列切入点指示符可以在将来的版本中扩展，以支持更多的AspectJ切入点指示符。
+```
+
+- *execution*：匹配方法执行连接点，这是使用Spring AOP时要使用的主要切入点指示符
+- *within*：限制匹配连接点的类型（只是使用Spring AOP时，方法的执行点声明在指定的类型中）
+- this:限制与连接点（使用Spring AOP时的方法执行点）的匹配，其中bean引用（Spring AOP代理）是给定类型的一个实例
+
+
+- *target* - limits matching to join points (the execution of methods when using Spring AOP) where the target object (application object being proxied) is an instance of the given type
+- *args* - limits matching to join points (the execution of methods when using Spring AOP) where the arguments are instances of the given types
+- *@target* - limits matching to join points (the execution of methods when using Spring AOP) where the class of the executing object has an annotation of the given type
+- *@args* - limits matching to join points (the execution of methods when using Spring AOP) where the runtime type of the actual arguments passed have annotations of the given type(s)
+- *@within* - limits matching to join points within types that have the given annotation (the execution of methods declared in types with the given annotation when using Spring AOP)
+- *@annotation* - limits matching to join points where the subject of the join point (method being executed in Spring AOP) has the given annotation
+
+由于Spring AOP只支持匹配方法执行连接点，所以上面的切入点指示符的讨论给出了比在AspectJ编程指南中找到的更窄的定义。另外，AspectJ本身具有基于类型的语义，并且在执行连接点上，this和target都指向同一个对象 - 执行方法的对象。 由于Spring AOP是一个基于代理的系统，所以区分代理对象本身（绑定到this）和代理（绑定到target）后面的目标对象。
+
+```
+由于Spring的AOP框架的基于代理的性质，在目标对象内定义的方法调用是不被拦截的。对于JDK代理，只有代理上的public接口方法调用才能被拦截。当使用CGLIB时，代理上的public和protected方法调用将被拦截，如果需要的话，甚至包package-visible方法。但是，通过代理的常见交互应始终设计成public的。
+
+请注意，切入点定义通常可以与任意拦截的方法相匹配。但如果一个切入点严格表示为是public的，即使在通过代理进行潜在的非public调用的CGLIB代理场景中，也需要相应地定义切入点。
+```
+
+注释：如果拦截需求包含target类中的方法调用，甚至包含构造函数调用，请考虑使用Spring驱动的 [native AspectJ weaving](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-aj-ltw)，而不是Spring的基于代理的AOP框架。这构成了不同特征的AOP使用方式，所以在做出决定之前一定要先熟悉weaving 。
