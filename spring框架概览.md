@@ -7878,7 +7878,7 @@ private void anyOldTransfer() {}// the pointcut signature
 
 构成@Pointcut注释value的切入点表达式是一个常规的AspectJ 5切入点表达式。有关AspectJ的切入点语言的完整讨论，请参阅[AspectJ Programming Guide](https://www.eclipse.org/aspectj/doc/released/progguide/index.html)（以及用于扩展的 [AspectJ 5 Developers Notebook](https://www.eclipse.org/aspectj/doc/released/adk15notebook/index.html)）或AspectJ的其中一本书，如Colyer等的“Eclipse AspectJ”。或Ramnivas Laddad的“AspectJ in Action”。
 
-#### 支持的切入点指示符
+#### 支持的切入点指示符(PCD)
 
 ```
                                                             其他切入点类型
@@ -7908,3 +7908,258 @@ Spring AOP支持的一系列切入点指示符可以在将来的版本中扩展�
 ```
 
 注释：如果拦截需求包含target类中的方法调用，甚至包含构造函数调用，请考虑使用Spring驱动的 [native AspectJ weaving](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-aj-ltw)，而不是Spring的基于代理的AOP框架。这构成了不同特征的AOP使用方式，所以在做出决定之前一定要先熟悉weaving 。
+
+Spring AOP还支持额外的PCD命名bean。这个PCD允许你限制连接点到匹配一个特定的Spring bean，或者一组命名的Spring bean（当使用通配符时）。bean PCD有以下形式：
+
+```java
+bean(idOrNameOfBean)
+```
+
+上例中的idOrNameOfBean标记可以是任何Spring bean的名称：提供了使用*字符的有限通配符支持，所以如果你为Spring bean建立了一些命名约定，你可以很容易地写一个bean PCD表达式来挑选它们。与其他切入点指示符的情况一样，bean PCD可以使用 &&  ||  !符号
+
+```
+请注意，bean PCD仅在Spring AOP中受支持，在原生的AspectJ编织中不支持。这是AspectJ定义的标准PCD的Spring特定扩展，因此不适用于@Aspect模型中声明的切面。
+
+bean PCD在实例级别运行（基于Spring bean name概念构建），而不是仅在类型级别运行（这是weaving-based的AOP框架所限制的）。基于实例的切入点指示符是Spring的proxy-based AOP框架的一个特殊功能，它与Spring bean工厂紧密集成，通过name识别特定的bean是很自然和直接的。
+```
+
+#### 组合切入点表达式
+
+```java
+@Pointcut("execution(public * *(..))")
+private void anyPublicOperation() {}
+
+@Pointcut("within(com.xyz.someapp.trading..*)")
+private void inTrading() {}
+
+@Pointcut("anyPublicOperation() && inTrading()")
+private void tradingOperation() {}
+```
+
+切入点表达式可以使用 '&&', '||' and '!'进行组合，也可以通过name来引用切入点表达式。以下示例显示三个切入点表达式：anyPublicOperation（如果方法执行连接点表示任何public方法的执行，则匹配）; inTrading（如果trading模块中的方法执行,则匹配）和tradingOperation（如果trading模块中的任何public方法执行，则匹配）。
+
+```java
+@Pointcut("execution(public * *(..))")
+private void anyPublicOperation() {}
+
+@Pointcut("within(com.xyz.someapp.trading..*)")
+private void inTrading() {}
+
+@Pointcut("anyPublicOperation() && inTrading()")
+private void tradingOperation() {}
+```
+
+如上所示，用更小的命名组件构建更复杂的切入点表达式是一种最佳做法。当按name引用切入点时，将应用普通的Java可见性规则（您可以看到相同类型的private切入点，继承层次结构中受protected的切入点，任何位置的public切入点等）。可见性不影响切入点匹配。
+
+#### 共享通用的切入点定义
+
+在开发企业应用程序时，您经常要通过几个切面参考应用程序模块和特定的一组操作。我们建议定义一个“SystemArchitecture”切面来捕获常见的切入点表达式。典型的这个切面看起来如下：
+
+```java
+package com.xyz.someapp;
+
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Pointcut;
+
+@Aspect
+public class SystemArchitecture {
+
+    /**
+     * A join point is in the web layer if the method is defined
+     * in a type in the com.xyz.someapp.web package or any sub-package
+     * under that.
+     */
+    @Pointcut("within(com.xyz.someapp.web..*)")
+    public void inWebLayer() {}
+
+    /**
+     * A join point is in the service layer if the method is defined
+     * in a type in the com.xyz.someapp.service package or any sub-package
+     * under that.
+     */
+    @Pointcut("within(com.xyz.someapp.service..*)")
+    public void inServiceLayer() {}
+
+    /**
+     * A join point is in the data access layer if the method is defined
+     * in a type in the com.xyz.someapp.dao package or any sub-package
+     * under that.
+     */
+    @Pointcut("within(com.xyz.someapp.dao..*)")
+    public void inDataAccessLayer() {}
+
+    /**
+     * A business service is the execution of any method defined on a service
+     * interface. This definition assumes that interfaces are placed in the
+     * "service" package, and that implementation types are in sub-packages.
+     *
+     * If you group service interfaces by functional area (for example,
+     * in packages com.xyz.someapp.abc.service and com.xyz.someapp.def.service) then
+     * the pointcut expression "execution(* com.xyz.someapp..service.*.*(..))"
+     * could be used instead.
+     *
+     * Alternatively, you can write the expression using the 'bean'
+     * PCD, like so "bean(*Service)". (This assumes that you have
+     * named your Spring service beans in a consistent fashion.)
+     */
+    @Pointcut("execution(* com.xyz.someapp..service.*.*(..))")
+    public void businessService() {}
+
+    /**
+     * A data access operation is the execution of any method defined on a
+     * dao interface. This definition assumes that interfaces are placed in the
+     * "dao" package, and that implementation types are in sub-packages.
+     */
+    @Pointcut("execution(* com.xyz.someapp.dao.*.*(..))")
+    public void dataAccessOperation() {}
+
+}
+```
+
+在这个切面中定义的切入点可以在任何需要切入点表达式的地方引用。例如，要使service层事务化，您可以编写：
+
+```java
+<aop:config>
+    <aop:advisor
+        pointcut="com.xyz.someapp.SystemArchitecture.businessService()"
+        advice-ref="tx-advice"/>
+</aop:config>
+
+<tx:advice id="tx-advice">
+    <tx:attributes>
+        <tx:method name="*" propagation="REQUIRED"/>
+    </tx:attributes>
+</tx:advice>
+```
+
+在 [Schema-based AOP support](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-schema)中讨论了<aop：config>和<aop：advisor>元素。[Transaction Management](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/data-access.html#transaction)中讨论了transaction elements。
+
+#### 例子
+
+Spring AOP用户可能最常使用execution切入点指示符。execution表达式的格式是：
+
+```java
+execution(modifiers-pattern? ret-type-pattern declaring-type-pattern?name-pattern(param-pattern)
+            throws-pattern
+```
+
+除了ret-type-pattern，name-pattern和param-pattern以外的所有部分都是可选的。ret-type-pattern决定了该方法的返回类型必须是什么，才能使连接点匹配。大多数情况下，您将使用星号通配符作为ret-type-pattern，它匹配任何返回类型。只有当方法返回给定类型时，完全限定类型名称才会匹配。name-pattern匹配方法名称。您可以使用星号通配符作为name-pattern的全部或部分。如果指定一个declaring-type-pattern，则包含一个尾随.将其加入name-pattern组件。param-pattern稍微复杂一点：（）匹配一个不带参数的方法，而（..）匹配任意数量的参数（零个或多个）。模式（星号通配符）匹配任何类型的一个参数的方法，（星号通配符，String）匹配一个方法有两个参数，第一个可以是任何类型，第二个必须是一个字符串。有关更多信息，请参阅“AspectJ编程指南”的“[Language Semantics](https://www.eclipse.org/aspectj/doc/released/progguide/semantics-pointcuts.html) ”部分
+
+常见切入点表达式的一些例子如下所示。
+
+- the execution of any public method:
+
+```
+execution(public * *(..))
+```
+
+- the execution of any method with a name beginning with "set":
+
+```
+execution(* set*(..))
+```
+
+- the execution of any method defined by the `AccountService` interface:
+
+```
+execution(* com.xyz.service.AccountService.*(..))
+```
+
+- the execution of any method defined in the service package:
+
+```
+execution(* com.xyz.service.*.*(..))
+```
+
+- the execution of any method defined in the service package or a sub-package:
+
+```
+execution(* com.xyz.service..*.*(..))
+```
+
+- any join point (method execution only in Spring AOP) within the service package:
+
+```
+within(com.xyz.service.*)
+```
+
+- any join point (method execution only in Spring AOP) within the service package or a sub-package:
+
+```
+within(com.xyz.service..*)
+```
+
+- any join point (method execution only in Spring AOP) where the proxy implements the `AccountService` interface:
+
+```
+this(com.xyz.service.AccountService)
+“this”更常用于绑定形式： - 关于如何在通知主体中使代理对象可用,请参阅以下章节。
+```
+
+- any join point (method execution only in Spring AOP) where the target object implements the `AccountService` interface:
+
+```
+target(com.xyz.service.AccountService)
+“target”更常用于绑定形式： - 关于如何在通知主体中提供target对象，请参阅以下章节。
+```
+
+- any join point (method execution only in Spring AOP) which takes a single parameter, and where the argument passed at runtime is `Serializable`:
+
+```
+args(java.io.Serializable)
+'args'更常用于绑定形式： - 关于如何在通知主体中提供方法参数的建议，请参阅以下章节。
+```
+
+请注意，此示例中给出的切入点与execution(* *(java.io.Serializable))：前者表示如果在运行时传递的参数是Serializable，则args版本匹配；后者表示如果方法签名声明单个参数的类型是Serializable，则匹配。
+
+- any join point (method execution only in Spring AOP) where the target object has an `@Transactional` annotation:
+
+```
+@target(org.springframework.transaction.annotation.Transactional)
+'@target'也可以以绑定形式使用： - 关于如何使通知体中的注释对象可用，请参阅以下部分。
+```
+
+- any join point (method execution only in Spring AOP) where the declared type of the target object has an `@Transactional`annotation:
+
+```
+@within(org.springframework.transaction.annotation.Transactional)
+'@within'也可用于绑定形式： - 关于如何在通知主体中使注解对象可用，请参阅以下部分。
+```
+
+- any join point (method execution only in Spring AOP) where the executing method has an `@Transactional` annotation:
+
+```
+@annotation(org.springframework.transaction.annotation.Transactional)
+'@annotation'也可以以绑定形式使用： - 关于如何使建议主体中的注释对象可用，请参阅以下部分。
+```
+
+- any join point (method execution only in Spring AOP) which takes a single parameter, and where the runtime type of the argument passed has the `@Classified` annotation:
+
+```
+@args(com.xyz.security.Classified)
+'@args'也可以以绑定形式使用： - 关于如何使通知体中的注释对象可用，请参阅以下部分。
+```
+
+- any join point (method execution only in Spring AOP) on a Spring bean named `tradeService`:
+
+```
+bean(tradeService)
+```
+
+- any join point (method execution only in Spring AOP) on Spring beans having names that match the wildcard expression `*Service`:
+
+```
+bean(*Service)
+```
+
+#### 编写好的切入点
+
+在编译期间，AspectJ会处理切入点以试图优化匹配性能。检查代码并确定每个连接点是否匹配（静态或动态）给定的切入点是一个代价高昂的过程。 （动态匹配意味着无法从静态分析完全确定匹配，并且将在代码中放置一个测试以确定代码运行时是否存在实际匹配）。在第一次遇到切入点声明时，AspectJ会为匹配过程将其重写为最佳形式。这是什么意思？基本上，切入点被重写为DNF（析取范式），并且切入点的组件被排序，以便首先检查那些评估代价最低的组件。这意味着您不必担心理解各种切入点指示符的性能，也不需要在切入点声明中以某种顺序提供它们。
+
+然而，AspectJ只能根据它知道的内容工作，为了获得最佳的匹配性能，您应该考虑匹配正在努力实现的是什么目标，并尽可能地缩小匹配的搜索空间。现有的指定者自然地分为三类：kinded, scoping and context:：
+
+- Kinded designators是那些选择特定类型的连接点的指示符。例如：execution, get, set, call, handler
+- Scoping designators是指选择一组感兴趣的连接点（可能是多种类型）的指示符。例如：within, withincode
+- Contextual designators是基于上下文匹配（并且可选地绑定）的那些指示符。例如：this，target，@annotation
+
+一个写得好的切入点应至少包括前两种类型（kinded和scoping），如果希望基于连接点上下文进行匹配或者将该上下文绑定以用于通知，则可以包含Contextual designators。只提供一个kinded designator或仅指定一个Contextual designators是可以的，但是会由于所有额外的处理和分析而影响编织性能（使用的时间和内存）。Scoping designators 的匹配速度非常快，而且它们的使用方式意味着AspectJ可以很快地解除不应该进一步处理的连接点组 - 这就是为什么一个好的切入点应该总是包含一个Scoping designators，如果可能的话。
