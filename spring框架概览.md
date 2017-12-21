@@ -8336,3 +8336,151 @@ public class AroundExample {
 ```
 
 around通知返回的值将是方法调用者看到的返回值。例如，一个简单的缓存切面可以从一个缓存中返回一个值，如果它没有，则调用proceed（）。请注意，proceed（）可能会一次，多次或根本不在around  通知中引用，所有这些都是非常合法的。
+
+#### Advice parameters
+
+Spring提供了完全类型化的通知 - 意味着你在通知的方法签名中声明了你需要的参数（就像我们上面看到的returning and throwing通知的例子），而不是一直使用Object []数组。我们将看到如何同时使上下文参数和方法参数在通知中可以使用。首先让我们来看看如何编写普通的通知，这个通知可以发现它匹配的方法。
+
+##### 访问当前的JoinPoint
+
+任何通知都可以声明org.aspectj.lang.JoinPoint类型的参数作为第一个参数（请注意，around通知的第一个参数声明需要是ProceedingJoinPoint类型，它是JoinPoint的子类，JoinPoint接口提供了getArgs（）（返回匹配方法的参数），getThis（）（返回代理对象），getTarget（）（返回目标对象），getSignature（）（返回正在被匹配的方法的描述）和toString（）（打印一个有用的通知方法的描述）。请咨询javadocs的全部细节。
+
+将参数传递给切面
+
+我们已经看到如何绑定匹配方法返回的值或异常到通知中（在returning and after throwing通知中使用）。为了使参数值可用于通知主体，可以使用args的绑定形式。如果在args表达式中使用参数名称代替类型名称，则在调用通知时，相应参数的值将作为参数值传递。下面的例子应该会使我们更清楚。假设你想通知第一个参数为Account对象的dao操作执行，并且你需要在通知体中访问account。你可以写下面的内容：
+
+```java
+@Before("com.xyz.myapp.SystemArchitecture.dataAccessOperation() && args(account,..)")
+public void validateAccount(Account account) {
+    // ...
+}
+```
+
+切入点表达式的args（account，..）部分有两个目的：首先，它将匹配的方法限制为那些至少需要有一个参数的方法，并且传递给该参数的参数是一个Account实例;其次，它通过account参数使实际的Account对象可用于通知。
+
+另一种能达到相同目的方式是声明一个切入点，当它匹配一个连接点时“提供”Account对象的值，然后从通知中引用指定的切入点。这看起来如下所示：
+
+```java
+@Pointcut("com.xyz.myapp.SystemArchitecture.dataAccessOperation() && args(account,..)")
+private void accountDataAccessOperation(Account account) {}
+
+@Before("accountDataAccessOperation(account)")
+public void validateAccount(Account account) {
+    // ...
+}
+```
+
+有兴趣的读者再次参考AspectJ编程指南了解更多细节。
+
+代理对象（this），目标对象（target）和注释（@within，@target，@annotation，@args）都可以以类似的方式绑定。以下示例显示了如何匹配带有@Auditable注解方法的执行，并提取audit code。
+
+首先定义@Auditable注解：
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Auditable {
+    AuditCode value();
+}
+```
+
+然后是匹配@Auditable方法的执行点的通知：
+
+```java
+@Before("com.xyz.lib.Pointcuts.anyPublicMethod() && @annotation(auditable)")
+public void audit(Auditable auditable) {
+    AuditCode code = auditable.value();
+    // ...
+}
+```
+
+##### 通知参数和泛型
+
+Spring AOP可以处理类声明和方法参数中使用的泛型。假设你有一个这样的泛型类型：
+
+```java
+public interface Sample<T> {
+    void sampleGenericMethod(T param);
+    void sampleGenericCollectionMethod(Collection<T> param);
+}
+```
+
+您可以将拦截的方法类型限制为某些参数类型，只需指定通知的参数类型为想要拦截的方法的类型：
+
+```java
+@Before("execution(* ..Sample+.sampleGenericMethod(*)) && args(param)")
+public void beforeSampleMethod(MyType param) {
+    // Advice implementation
+}
+```
+
+这样做是能很好的工作的，我们已经在上面讨论过了。但是，值得指出的是，这对于通用collection来说不起作用。所以你不能像这样定义一个切入点：
+
+```java
+@Before("execution(* ..Sample+.sampleGenericCollectionMethod(*)) && args(param)")
+public void beforeSampleMethod(Collection<MyType> param) {
+    // Advice implementation
+}
+```
+
+为了使这个工作，我们将不得不检查集合中的每一个元素，这是不合理的，因为我们也不能决定如何处理一般的null。为了实现类似于此的操作，您必须将参数键入Collection <？>并手动检查元素的类型。
+
+##### 确定参数名称
+
+与通知绑定的参数依赖于在切入点表达式中使用的匹配名称（通知和切入点）方法签名中的声明参数名称。参数名称不能通过Java反射来使用，所以Spring AOP使用以下策略来确定参数名称：
+
+- 如果用户明确指定了参数名称，则使用指定的参数名称：通知和切入点注解都具有可选的“argNames”属性，可用于指定注解方法(切面或切入点方法)的参数名称 - 这些参数名称在运行时可用。例如：
+
+```java
+@Before(value="com.xyz.lib.Pointcuts.anyPublicMethod() && target(bean) && @annotation(auditable)",
+        argNames="bean,auditable")
+public void audit(Object bean, Auditable auditable) {
+    AuditCode code = auditable.value();
+    // ... use code and bean
+}
+```
+
+如果第一个参数是JoinPoint，ProceedingJoinPoint或JoinPoint.StaticPart类型，则可以从“argNames”属性的值中省略第一个参数的名称。例如，如果修改前面的通知以接收连接点对象，则“argNames”属性不需要包含它：
+
+```java
+@Before(value="com.xyz.lib.Pointcuts.anyPublicMethod() && target(bean) && @annotation(auditable)",
+        argNames="bean,auditable")
+public void audit(JoinPoint jp, Object bean, Auditable auditable) {
+    AuditCode code = auditable.value();
+    // ... use code, bean, and jp
+}
+```
+
+对第一个类型为JoinPoint，ProceedingJoinPoint和JoinPoint.StaticPart的参数给予的特殊处理对于不涉及任何其他连接点上下文的通知特别方便。在这种情况下，您可以简单地省略“argNames”属性。例如，以下建议不需要声明“argNames”属性：
+
+```java
+@Before("com.xyz.lib.Pointcuts.anyPublicMethod()")
+public void audit(JoinPoint jp) {
+    // ... use jp
+}
+```
+
+- 使用'argNames'属性有点笨拙，所以如果没有指定'argNames'属性，那么Spring AOP将查看类的调试信息，并尝试从局部变量表中确定参数名称。只要这些类已经用调试信息编译（至少是'-g：vars'），这个信息就会出现。使用这个标志进行编译的结果是：（1）你的代码会稍微容易理解（反向工程），（2）类文件的大小会稍微大一点（通常是无关紧要的），（3）编译器将不会应用去除未使用的本地变量的优化。换句话说，用这个标志编译就不会遇到困难。
+
+
+- 如果代码已经被编译而且没有必要的调试信息，那么Spring AOP会尝试推断与通知参数匹配的切入点表达式中绑定的变量（例如，如果在切入点表达式中只绑定了一个变量，而通知方法只有一个参数，配对是显而易见的！）。如果根据给定可用的信息，变量的绑定并不明确，那么就会抛出一个AmbiguousBindingException异常。
+
+
+- 如果上述所有的策略都失败了，那么IllegalArgumentException将被抛出。
+
+##### Proceeding with arguments
+
+我们之前说过，我们将描述如何编写一个对于Spring AOP和AspectJ始终一致的带有参数的proceed调用。解决方案只是确保通知签名按顺序绑定每个方法参数。例如：
+
+```java
+@Around("execution(List<Account> find*(..)) && " +
+        "com.xyz.myapp.SystemArchitecture.inDataAccessLayer() && " +
+        "args(accountHolderNamePattern)")
+public Object preProcessQueryPattern(ProceedingJoinPoint pjp,
+        String accountHolderNamePattern) throws Throwable {
+    String newPattern = preProcess(accountHolderNamePattern);
+    return pjp.proceed(new Object[] {newPattern});
+}
+```
+
+在许多情况下，你无论如何都会做这个绑定（如上面的例子）。
