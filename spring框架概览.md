@@ -8163,3 +8163,176 @@ bean(*Service)
 - Contextual designators是基于上下文匹配（并且可选地绑定）的那些指示符。例如：this，target，@annotation
 
 一个写得好的切入点应至少包括前两种类型（kinded和scoping），如果希望基于连接点上下文进行匹配或者将该上下文绑定以用于通知，则可以包含Contextual designators。只提供一个kinded designator或仅指定一个Contextual designators是可以的，但是会由于所有额外的处理和分析而影响编织性能（使用的时间和内存）。Scoping designators 的匹配速度非常快，而且它们的使用方式意味着AspectJ可以很快地解除不应该进一步处理的连接点组 - 这就是为什么一个好的切入点应该总是包含一个Scoping designators，如果可能的话。
+
+### 5.2.4. 声明通知
+
+通知与切入点表达式相关联，并在切入点匹配的方法执行点before, after, or around运行。切入点表达式可以是对命名切入点的简单引用，也可以是直接声明的切入点表达式。
+
+#### Before advice
+
+before通知在切面中使用@Before注释声明：
+
+```java
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+
+@Aspect
+public class BeforeExample {
+
+    @Before("com.xyz.myapp.SystemArchitecture.dataAccessOperation()")
+    public void doAccessCheck() {
+        // ...
+    }
+
+}
+```
+
+如果直接使用切入点表达式，我们可以将上面的例子重写为：
+
+```java
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+
+@Aspect
+public class BeforeExample {
+
+    @Before("execution(* com.xyz.myapp.dao.*.*(..))")
+    public void doAccessCheck() {
+        // ...
+    }
+
+}
+```
+
+#### After returning advice
+
+After returning通知在匹配的方法正常返回时执行。它使用@AfterReturning注释声明：
+
+```java
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.AfterReturning;
+
+@Aspect
+public class AfterReturningExample {
+
+    @AfterReturning("com.xyz.myapp.SystemArchitecture.dataAccessOperation()")
+    public void doAccessCheck() {
+        // ...
+    }
+
+}
+```
+
+```
+注意：当然也可以在同一个切面中声明多个通知和其他成员。我们只是在这些例子中展示一个通知，以关注当前正在讨论的问题。
+```
+
+有时您需要在通知主体中访问返回的实际值。你可以使用@AfterReturning的形式，这种形式可以绑定这个返回值：
+
+```java
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.AfterReturning;
+
+@Aspect
+public class AfterReturningExample {
+
+    @AfterReturning(
+        pointcut="com.xyz.myapp.SystemArchitecture.dataAccessOperation()",
+        returning="retVal")
+    public void doAccessCheck(Object retVal) {
+        // ...
+    }
+
+}
+```
+
+returning属性的值必须对应于通知方法中参数的名称。当方法执行返回时，返回值将作为相应的参数值传递给通知方法。returning属性的值只会匹配返回指定类型的值的方法执行点（在本例中，将匹配任何返回值的方法执行点）。
+
+#### After throwing advice
+
+当匹配的方法抛出异常而退出时，After throwing 通知执行。它使用@AfterThrowing注释声明：
+
+```java
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.AfterThrowing;
+
+@Aspect
+public class AfterThrowingExample {
+
+    @AfterThrowing("com.xyz.myapp.SystemArchitecture.dataAccessOperation()")
+    public void doRecoveryActions() {
+        // ...
+    }
+
+}
+```
+
+通常，我们希望只有在抛出给定类型的异常时，才需要运行通知，而且还经常需要在建议主体中访问抛出的异常。使用throwing属性来限制匹配的异常（否则使用Throwable作为异常类型）将抛出的异常绑定到通知参数。
+
+```java
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.AfterThrowing;
+
+@Aspect
+public class AfterThrowingExample {
+
+    @AfterThrowing(
+        pointcut="com.xyz.myapp.SystemArchitecture.dataAccessOperation()",
+        throwing="ex")
+    public void doRecoveryActions(DataAccessException ex) {
+        // ...
+    }
+
+}
+```
+
+throwing属的值必须与通知方法中参数名相对应。当一个方法抛出一个异常退出时，异常将作为相应的参数值传递给通知方法。throwing参数也将匹配限制在只抛出指定类型的异常的方法执行点（在这种情况下为DataAccessException）。
+
+#### After (finally) advice
+
+不管匹配的方法如何退出，After (finally)通知都会执行。它使用@After注释声明。它通常用于释放资源等。
+
+```java
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.After;
+
+@Aspect
+public class AfterFinallyExample {
+
+    @After("com.xyz.myapp.SystemArchitecture.dataAccessOperation()")
+    public void doReleaseLock() {
+        // ...
+    }
+
+}
+```
+
+#### Around advice
+
+最后的通知是Around advice。Around advice在匹配的方法周围执行。它有机会在方法执行之前和之后运行，并确定方法实际上何时，如何，甚至是否实际执行。如果您需要以线程安全的方式（例如启动和停止计时器）在方法执行之前和之后共享状态，则通常会使用“around”通知。应该总是使用符合您要求的最简单的通知形式。
+
+around advice是使用@Around注释来声明的。通知方法的第一个参数必须是ProceedingJoinPoint类型。在通知的主体中，在ProceedingJoinPoint上调用proceed（）会导致底层方法执行。 proceed方法也可以传递Object []  当做参数- 数组中的值将用作方法执行的参数。
+
+```
+使用Object []调用方法时的行为与AspectJ编译器编译的around处理的行为稍有不同。对于使用传统的AspectJ语言编写的around建议，传递给proceed()的参数数量必须与传递给around通知的参数数量（而不是基础连接点采用的参数数量）匹配，并且传递给proceed()参数位置的值将取代实体的连接点的相应位置的原始值（如果现在没有意义的话，别担心！）。 Spring采用的方法更简单，与其proxy-based的特点更匹配。如果您正在编译针对Spring编写的@AspectJ切面，并使用AspectJ编译器和编织器进行参数处理，则只需要了解这种差异。有一种方法可以编写与Spring AOP和AspectJ 100％兼容的切面，这在下面的通知参数部分讨论。
+```
+
+```java
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.ProceedingJoinPoint;
+
+@Aspect
+public class AroundExample {
+
+    @Around("com.xyz.myapp.SystemArchitecture.businessService()")
+    public Object doBasicProfiling(ProceedingJoinPoint pjp) throws Throwable {
+        // start stopwatch
+        Object retVal = pjp.proceed();
+        // stop stopwatch
+        return retVal;
+    }
+}
+```
+
+around通知返回的值将是方法调用者看到的返回值。例如，一个简单的缓存切面可以从一个缓存中返回一个值，如果它没有，则调用proceed（）。请注意，proceed（）可能会一次，多次或根本不在around  通知中引用，所有这些都是非常合法的。
