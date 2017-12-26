@@ -9401,4 +9401,173 @@ public class Account {
 
 Spring现在将查找名为“account”的bean定义，并将其用作bean definition 来配置新的Account实例。
 
-您也可以使用autowiring 来避免必须指定专用的bean定义。要使Spring应用自动装配，请使用@Configurable注解的 `autowire`属性：分别指定@Configurable（autowire = Autowire.BY_TYPE）或@Configurable（autowire = Autowire.BY_NAME），则分别按类型或名称自动装配。作为备选，从 Spring 2.5开始，通过在字段或方法级别使用@Autowired或@Inject（请参阅[Annotation-based container configuration](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-annotation-config)以获取更多详细信息），为您的@Configurable bean指定显式注解驱动的依赖注入。
+您也可以使用autowiring 来避免必须指定专用的bean定义。要使Spring应用自动装配，请使用@Configurable注解的 `autowire`属性：分别指定@Configurable（autowire = Autowire.BY_TYPE）或@Configurable（autowire = Autowire.BY_NAME），则分别按类型或名称自动装配。作为备选，从 Spring 2.5开始，通过在字段或方法级别使用@Autowired或@Inject（请参阅[Annotation-based container configuration](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-annotation-config)以获取更多详细信息），为您的@Configurable bean显式指定注解驱动的依赖注入。
+
+最后，您可以使用dependencyCheck属性（例如：@Configurable（autowire = Autowire.BY_NAME，dependencyCheck = true））为新创建和配置的对象中的对象引用启用Spring依赖项检查。如果此属性设置为true，则Spring将在所有属性（不包括基本类型属性或集合）都已设置之后验证。
+
+当然，使用注释本身不会有任何作用。 Spring-aspects.jar中的AnnotationBeanConfigurerAspect作用于存在注解的类。实质上，“带有@Configurable注释的类型的新对象的初始化返回后，这个切面才会根据注释的属性使用Spring配置新创建的对象”。在这种情况下，初始化是指新实例化的对象（例如，用new操作符实例化的对象）以及正在经历反序列化（例如，通过readResolve（））的可序列化对象。
+
+上段中的一个关键段落是“实质上”后面这一段。在大多数情况下，“从新对象初始化返回后”的确切语义没什么问题......在这种情况下，“初始化后”意味着依赖关系将在对象被创建之后被注入 - 这意味着依赖关系将不能在类的构造方法体中使用。但是如果你想要在构造函数体执行之前注入依赖项，并且可以在构造函数的主体中使用，那么你需要在@Configurable声明中定义它，如下所示：
+
+```java
+@Configurable(preConstruction=true)
+```
+
+您可以在 [AspectJ Programming Guide](https://www.eclipse.org/aspectj/doc/next/progguide/index.html)的 [in this appendix](https://www.eclipse.org/aspectj/doc/next/progguide/semantics-joinPoints.html)中找到关于AspectJ中各种切入点类型语言语义的更多信息。
+
+为了实现本节的目的，带有注释的类型必须使用AspectJ编织器编织 - 您可以使用构建时的Ant或Maven任务来执行此操作（请参阅 [AspectJ Development Environment Guide](https://www.eclipse.org/aspectj/doc/released/devguide/antTasks.html)）或load-time织入（请参阅 [Load-time weaving with AspectJ in the Spring Framework](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-aj-ltw)）。 AnnotationBeanConfigurerAspect本身需要由Spring配置（为了获得对用来配置新对象的bean工厂的引用）。如果您使用基于Java的配置，只需将@EnableSpringConfigured添加到任何@Configuration类。
+
+```java
+@Configuration
+@EnableSpringConfigured
+public class AppConfig {
+
+}
+```
+
+如果您更喜欢基于XML的配置，Spring上下文命名空间定义了一个方便的上下文：spring-configured元素：
+
+```xml
+<context:spring-configured/>
+```
+
+在 AnnotationBeanConfigurerAspect切面之前创建的@Configurable对象的实例已经被配置将会打印一条debug日志，并且不会修改这个对象的配置。一个例子可能是Spring配置中的一个bean，它在Spring初始化时创建domain对象。在这种情况下，可以使用“depends-on”bean属性来手动指定bean依赖于配置的切面。
+
+```xml
+<bean id="myService"
+        class="com.xzy.myapp.service.MyService"
+        depends-on="org.springframework.beans.factory.aspectj.AnnotationBeanConfigurerAspect">
+
+    <!-- ... -->
+
+</bean>
+```
+
+```
+除非你真的想在运行时依赖@Configurable的语义，否则不要通过AnnotationBeanConfigurerAspect激活@Configurable的处理。特别是，确保你没有在已经在容器中注册为普通Spring bean的Bean类上使用@Configurable：否则你将得到两次初始化，一次通过容器，一次通过切面。
+```
+
+#### 单元测试@Configurable对象
+
+@Configurable支持的目标之一就是支持domain对象的独立单元测试，而不会遇到与硬编码查找相关的困难。如果@Configurable类型没有被AspectJ编织，那么注解在单元测试中没有任何影响，您可以简单地在被测对象中设置mock或存根属性引用，并正常处理。如果@Configurable类型是由AspectJ编织的，那么你仍然可以像平常一样在容器的外面进行单元测试，但是每当你构建一个@Configurable对象时，你会看到一条警告消息，指出它没有被Spring配置。
+
+#### 使用多个应用程序上下文
+
+用于实现@Configurable支持的AnnotationBeanConfigurerAspect是一个AspectJ单例切面。单例切面的scope与static成员的范围相同，也就是说每个定义此切面类型的类加载器都有一个此切面的实例。这意味着如果在相同的类加载器层次结构中定义多个应用程序上下文，则需要考虑在何处定义@EnableSpringConfigured bean，以及将spring-aspects.jar放置在类路径的何处。
+
+考虑一个典型的Spring Web应用程序配置，其中包含一个共享的parent 应用程序上下文，用于定义公共业务服务和支持它们的所有东西，以及每个包含特定于servlet定义的一个子应用程序上下文。所有这些上下文将在同一个类加载器层次结构中共存，因此AnnotationBeanConfigurerAspect只能其中一个上下文的引用。在这种情况下，我们建议在共享（父）应用程序上下文中定义@EnableSpringConfigured bean：这将定义您可能希望注入到域对象中的service。但是结果是，你不能使用@Configurable机制（可能不是你想要的东西！）来配置domain域引用在子应用程序上下文中定义的bean的引用。
+
+在同一容器中部署多个web应用程序时，请确保每个web应用程序使用自己的类加载器加载spring-aspects.jar中的类型（例如，将spring-aspects.jar放在“WEB-INF / lib”中） 。如果spring-aspects.jar仅添加到容器范围的类路径（因此由共享父类加载器加载），则所有Web应用程序将共享相同的切面实例，这可能不是您想要的。
+
+### 5.8.2 AspectJ的其他Spring切面
+
+除了处理@Configurable的切面，spring-aspects.jar还包含一个AspectJ方面，可以用来驱动带有@Transactional注解的类型和方法的Spring的事务管理。这主要是为那些希望在Spring容器之外使用Spring框架事务支持的用户而设计的。
+
+解释@Transactional注释的切面是AnnotationTransactionAspect。当使用这个切面时，你必须在实现类上添加注解（和/或类中的方法），而不是类实现的接口（如果有的话）。 AspectJ遵循Java的规则，接口上的注释不被继承。
+
+类上的@Transactional注释指定了执行类中任何public 方法的默认事务语义。
+
+类中的方法的@Transactional注释将覆盖由类注释（如果存在）给定的默认事务语义。任何可见性的方法都可以被注释，包括私有方法。直接注释非公共方法是获取执行这些方法的事务划分的唯一方法。
+
+```
+自Spring Framework 4.2以来，spring-aspects提供了一个类似的切面，为标准的javax.transaction.Transactional注解提供了完全相同的功能。查看JtaAnnotationTransactionAspect获取更多细节。
+```
+
+对于希望使用Spring配置和事务管理支持但不希望（或不能）使用注释的AspectJ程序员，spring-aspects.jar还包含可以继承以提供自己的切入点定义的抽象切面。有关更多信息，请参阅AbstractBeanConfigurerAspect和AbstractTransactionAspect方面的来源。例如，以下摘录显示了如何使用与完全限定的类名匹配的prototype  bean定义来编写一个方面，用于配置domain模型中定义的所有对象实例：
+
+```java
+public aspect DomainObjectConfiguration extends AbstractBeanConfigurerAspect {
+
+    public DomainObjectConfiguration() {
+        setBeanWiringInfoResolver(new ClassNameBeanWiringInfoResolver());
+    }
+
+    // the creation of a new bean (any object in the domain model)
+    protected pointcut beanCreation(Object beanInstance) :
+        initialization(new(..)) &&
+        SystemArchitecture.inDomainModel() &&
+        this(beanInstance);
+
+}
+```
+
+### 5.8.3 使用Spring IoC配置AspectJ切面
+
+在Spring应用程序中使用AspectJ切面的时候，希望并且期望能够使用Spring来配置这些切面是很正常的。 AspectJ运行时本身负责创建切面，通过Spring配置AspectJ创建的切面的方法取决于切面使用的AspectJ实例化模型（per-xxx子句）。
+
+AspectJ的大部分切面都是*singleton* aspects。这些切面的配置非常简单：只需简单地创建一个引用切面类型的bean定义，并包含bean属性'factory-method =“aspectOf”'。这确保了Spring通过请求AspectJ来获得切面实例，而自己不是试图创建一个实例。例如：
+
+```java
+<bean id="profiler" class="com.xyz.profiler.Profiler"
+        factory-method="aspectOf">
+
+    <property name="profilingStrategy" ref="jamonProfilingStrategy"/>
+</bean>
+```
+
+非单例切面的配置比较困难：但是，通过创建prototype bean定义并使用spring-aspects.jar中的@Configurable支持来配置AspectJ运行时创建的bean的切面实例是可能的。
+
+如果您想要使用AspectJ编织一些@AspectJ切面（例如，针对domain类型使用load-time编织）另外有一些@AspectJ切面您希望与Spring AOP一起使用，并且这些切面都使用Spring进行配置，那么你将需要告诉Spring AOP @AspectJ autoproxying在配置中定义的@AspectJ切面的确切子集应该用于自动代理。您可以通过在<aop：aspectj-autoproxy />声明中使用一个或多个<include />元素来完成此操作。每个<include />元素指定一个名称模式，并且只有名称与至少一个模式相匹配的bean才会用于Spring AOP autoproxy配置：
+
+```xml
+<aop:aspectj-autoproxy>
+    <aop:include name="thisBean"/>
+    <aop:include name="thatBean"/>
+</aop:aspectj-autoproxy>
+```
+
+```
+不要被<aop：aspectj-autoproxy />元素的名称所误导：使用它将导致创建Spring AOP代理。切面声明的@AspectJ风格只是在这里使用，但不涉及AspectJ runtime。
+```
+
+### 5.8.4. Load-time weaving with AspectJ in the Spring Framework
+
+略
+
+## 5.9. Further Resources
+
+有关AspectJ的更多信息可以在 [AspectJ website](https://www.eclipse.org/aspectj)上找到。
+
+由Adrian Colyer等人撰写的Eclipse AspectJ一书。人。 （Addison-Wesley，2005）为AspectJ语言提供了一个全面的介绍和参考。
+
+来自Ramnivas Laddad的第二版AspectJ in Action第二版（Manning，2009）受到强烈推荐;本书的重点是AspectJ，但是很多AOP的一般主题都在探讨（在一定的深度）。
+
+# 6. Spring AOP APIs
+
+略
+
+# 7. Null-safety
+
+虽然Java不允许用它的类型系统表示null-safety，但Spring Framework现在在org.springframework.lang包中提供了以下注释来声明API和字段的nullability ：
+
+- @NonNull注释的特定参数，返回值或字段不能为null（参数和返回值都不能为空的情况下，使用@NonNullApi和@NonNullFields）。
+- @Nullable注解的特定参数，返回值或字段可以为null。
+- 包级别的@NonNullApi注释声明参数和返回值非null。
+- 包级别的@NonNullFields注释声明字段非null。
+
+Spring框架利用了这些注释，但是这些注解也可以用于任何基于Spring的Java项目来声明null-safe的API和可选的null-safe字段。泛型参数，可变参数和数组元素的nullability不受支持，但可能在即将发布的版本中支持，请参阅 [SPR-15942](https://jira.spring.io/browse/SPR-15942)以获取最新信息。预期在Spring Framework发行版（包括次要发行版）中Nullability 会进行微调。在方法体内使用的类型的Nullability 超出了这个特性的范围。
+
+```
+像Reactor或Spring Data这样的库利用这个特性提供了null-safe的API。
+```
+
+## 7.1 用例
+
+除了提供Spring框架API nullability(可空性)的明确声明之外，IDE（如IDEA或Eclipse）也可以使用这些注释向Java开发人员提供有关null-safety的有用警告，以避免在运行时出现NullPointerException异常。
+
+这些注解也被用来实现Kotlin项目中的Spring AP Inull-safe，因为Kotlin本身支持 [null-safety](https://kotlinlang.org/docs/reference/null-safety.html)。更多细节可在 [Kotlin support documentation](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/languages.html#kotlin-null-safety)中找到。
+
+## 7.2 JSR-305元注解
+
+Spring注释使用[JSR 305](https://jcp.org/en/jsr/detail?id=305)注释进行元注释（一种休眠但广泛传播的JSR）。 JSR 305元注释允许像IDEA或Kotlin这样的工具供应商以通用的方式提供null-safety支持，而无需使用Spring注释进行硬编码支持。
+
+没有必要也不建议在项目类路径中添加JSR 305依赖项以利用Spring的null-safe API。只有基于Spring的库在其代码库中使用null-safety注解的项目才应该添加com.google.code.findbugs：jsr305：3.0.2与compileOnly Gradle配置或Maven提供的范围，以避免编译警告。
+
+# 8.数据缓冲器和编解码器
+
+## 8.1. Introduction
+
+DataBuffer接口定义了一个字节缓冲区的抽象。引入它的主要原因是Netty，而不是使用标准的java.nio.ByteBuffer。 Netty不使用ByteBuffer，而是提供ByteBuf作为替代。 Spring的DataBuffer是一个ByteBuf的简单抽象，也可以在非Netty平台上使用（即Servlet 3.1）。
+
+略
+
