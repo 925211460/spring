@@ -8698,7 +8698,7 @@ Spring的 [auto-proxying](https://docs.spring.io/spring/docs/5.0.2.RELEASE/sprin
 </aop:config>
 ```
 
-通知声明必须包含匹配名称的参数来切入点接收收集的连接点上下文：
+通知声明必须包含匹配名称的参数来接收切入点收集的连接点上下文：
 
 ```java
 public void monitor(Object service) {
@@ -9570,4 +9570,457 @@ Spring注释使用[JSR 305](https://jcp.org/en/jsr/detail?id=305)注释进行元
 DataBuffer接口定义了一个字节缓冲区的抽象。引入它的主要原因是Netty，而不是使用标准的java.nio.ByteBuffer。 Netty不使用ByteBuffer，而是提供ByteBuf作为替代。 Spring的DataBuffer是一个ByteBuf的简单抽象，也可以在非Netty平台上使用（即Servlet 3.1）。
 
 略
+
+# 9.附录
+
+## 9.1. XML Schemas
+
+这一部分列出了与核心容器相关的XML schemas 。
+
+### 9.1.1. The util schema
+
+顾名思义，util标签处理常见的工具配置问题，比如配置集合，引用常量等。要在util schema中使用标签，您需要在Spring XML配置文件的顶部有以下前导码;下面代码片段中的文本引用了正确的schema，以便您可以使用util命名空间中的标签。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:util="http://www.springframework.org/schema/util" xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"> <!-- bean definitions here -->
+
+</beans>
+```
+
+#### <util:constant/>
+
+Before…
+
+```xml
+<bean id="..." class="...">
+    <property name="isolation">
+        <bean id="java.sql.Connection.TRANSACTION_SERIALIZABLE"
+                class="org.springframework.beans.factory.config.FieldRetrievingFactoryBean" />
+    </property>
+</bean>
+```
+
+上面的配置使用Spring FactoryBean的实现FieldRetrievingFactoryBean来将bean上的isolation属性的值设置为java.sql.Connection.TRANSACTION_SERIALIZABLE常量的值。这一切都很好，但有点冗长，并且（不必要地）将Spring的内部管道暴露给最终用户。
+
+下面的基于XML模式的版本更加简洁，清晰地表达了开发人员的意图（“注入这个常数值”），而且读起来更好。
+
+```xml
+<bean id="..." class="...">
+    <property name="isolation">
+        <util:constant static-field="java.sql.Connection.TRANSACTION_SERIALIZABLE"/>
+    </property>
+</bean>
+```
+
+##### 设置bean属性或构造函数arg
+
+FieldRetrievingFactoryBean是一个检索静态或非静态字段值的FactoryBean。它通常用于检索`public` `static` `final`常量，然后可以用它来为另一个bean设置属性值或构造函数arg。
+
+查看下面的示例，静态字段是如何通过使用staticField属性暴露出来的：
+
+```xml
+<bean id="myField"
+        class="org.springframework.beans.factory.config.FieldRetrievingFactoryBean">
+    <property name="staticField" value="java.sql.Connection.TRANSACTION_SERIALIZABLE"/>
+</bean>
+```
+
+还有一个方便的使用形式，其中静态字段被指定为bean名称：
+
+```xml
+<bean id="java.sql.Connection.TRANSACTION_SERIALIZABLE"
+        class="org.springframework.beans.factory.config.FieldRetrievingFactoryBean"/>
+```
+
+这确实意味着bean id不再有任何选择（所以引用它的任何其他bean也必须使用这个更长的名称），但是这个表单定义非常简洁，而且作为一个内部bean使用非常方便，因为不需要为bean引用指定id：
+
+```xml
+<bean id="..." class="...">
+    <property name="isolation">
+        <bean id="java.sql.Connection.TRANSACTION_SERIALIZABLE"
+                class="org.springframework.beans.factory.config.FieldRetrievingFactoryBean" />
+    </property>
+</bean>
+```
+
+还可以访问另一个bean的非静态（实例）字段，如[`FieldRetrievingFactoryBean`](https://docs.spring.io/spring-framework/docs/5.0.2.RELEASE/javadoc-api/org/springframework/beans/factory/config/FieldRetrievingFactoryBean.html)类的API文档中所述。
+
+将枚举值作为属性或构造函数参数注入bean在Spring中很容易实现，因为实际上并不需要对Spring内部进行任何操作或知道任何事情（甚至不需要关于诸如FieldRetrievingFactoryBean的类）。我们来看一个例子，看看如何轻松地注入一个枚举值。考虑这个枚举：
+
+```java
+package javax.persistence;
+
+public enum PersistenceContextType {
+
+    TRANSACTION,
+    EXTENDED
+}
+```
+
+现在考虑一个类型为PersistenceContextType的setter：
+
+```java
+package example;
+
+public class Client {
+
+    private PersistenceContextType persistenceContextType;
+
+    public void setPersistenceContextType(PersistenceContextType type) {
+        this.persistenceContextType = type;
+    }
+}
+```
+
+和相应的bean定义：
+
+```xml
+<bean class="example.Client">
+    <property name="persistenceContextType" value="TRANSACTION"/>
+</bean>
+```
+
+#### <util:property-path/>
+
+Before…
+
+```xml
+<!-- target bean to be referenced by name -->
+<bean id="testBean" class="org.springframework.beans.TestBean" scope="prototype">
+    <property name="age" value="10"/>
+    <property name="spouse">
+        <bean class="org.springframework.beans.TestBean">
+            <property name="age" value="11"/>
+        </bean>
+    </property>
+</bean>
+
+<!-- will result in 10, which is the value of property 'age' of bean 'testBean' -->
+<bean id="testBean.age" class="org.springframework.beans.factory.config.PropertyPathFactoryBean"/>
+```
+
+上面的配置使用Spring FactoryBean的实现PropertyPathFactoryBean创建一个名为testBean.age的bean（类型为int），其值等于testBean bean的age属性。
+
+After…
+
+```xml
+<!-- target bean to be referenced by name -->
+<bean id="testBean" class="org.springframework.beans.TestBean" scope="prototype">
+    <property name="age" value="10"/>
+    <property name="spouse">
+        <bean class="org.springframework.beans.TestBean">
+            <property name="age" value="11"/>
+        </bean>
+    </property>
+</bean>
+
+<!-- will result in 10, which is the value of property 'age' of bean 'testBean' -->
+<util:property-path id="name" path="testBean.age"/>
+```
+
+<property-path />标签的path属性的值遵循beanName.beanProperty的形式。
+
+##### 使用<util：property-path />来设置一个bean属性或构造函数参数
+
+PropertyPathFactoryBean是一个FactoryBean，用于评估给定目标对象上的property path。目标对象可以直接指定，也可以通过bean name指定。这个值可以在另一个bean定义中用作属性值或构造函数参数。
+
+下面是一个按name使用另一个bean的path的例子：
+
+```xml
+// target bean to be referenced by name
+<bean id="person" class="org.springframework.beans.TestBean" scope="prototype">
+    <property name="age" value="10"/>
+    <property name="spouse">
+        <bean class="org.springframework.beans.TestBean">
+            <property name="age" value="11"/>
+        </bean>
+    </property>
+</bean>
+
+// will result in 11, which is the value of property 'spouse.age' of bean 'person'
+<bean id="theAge"
+        class="org.springframework.beans.factory.config.PropertyPathFactoryBean">
+    <property name="targetBeanName" value="person"/>
+    <property name="propertyPath" value="spouse.age"/>
+</bean>
+```
+
+在这个例子中，path是针对内部bean进行评估的：
+
+```xml
+<!-- will result in 12, which is the value of property 'age' of the inner bean -->
+<bean id="theAge"
+        class="org.springframework.beans.factory.config.PropertyPathFactoryBean">
+    <property name="targetObject">
+        <bean class="org.springframework.beans.TestBean">
+            <property name="age" value="12"/>
+        </bean>
+    </property>
+    <property name="propertyPath" value="age"/>
+</bean>
+```
+
+还有一个快捷方式，其中的bean名称是属性path。
+
+```xml
+<!-- will result in 10, which is the value of property 'age' of bean 'person' -->
+<bean id="person.age"
+        class="org.springframework.beans.factory.config.PropertyPathFactoryBean"/>
+```
+
+这种形式确实意味着bean的name没有选择。任何对它的引用也必须使用相同的id，即path。当然，如果作为一个内部的bean使用，根本就不需要引用它：
+
+```xml
+<bean id="..." class="...">
+    <property name="age">
+        <bean id="person.age"
+                class="org.springframework.beans.factory.config.PropertyPathFactoryBean"/>
+    </property>
+</bean>
+```
+
+结果类型可以在实际定义中具体设置。这对于大多数用例来说不是必需的，但可以用于某些情况。请参阅Javadocs以获取有关此功能的更多信息。
+
+#### <util:properties/>
+
+Before…
+
+```xml
+<!-- creates a java.util.Properties instance with values loaded from the supplied location -->
+<bean id="jdbcConfiguration" class="org.springframework.beans.factory.config.PropertiesFactoryBean">
+    <property name="location" value="classpath:com/foo/jdbc-production.properties"/>
+</bean>
+```
+
+上述配置使用Spring FactoryBean的实现PropertiesFactoryBean来实例化一个java.util.Properties实例，并使用从[`Resource`](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#resources) location加载的值）。
+
+After…
+
+```xml
+<!-- creates a java.util.Properties instance with values loaded from the supplied location -->
+<util:properties id="jdbcConfiguration" location="classpath:com/foo/jdbc-production.properties"/>
+```
+
+#### <util:list/>
+
+Before…
+
+```xml
+<!-- creates a java.util.List instance with values loaded from the supplied 'sourceList' -->
+<bean id="emails" class="org.springframework.beans.factory.config.ListFactoryBean">
+    <property name="sourceList">
+        <list>
+            <value>pechorin@hero.org</value>
+            <value>raskolnikov@slums.org</value>
+            <value>stavrogin@gov.org</value>
+            <value>porfiry@gov.org</value>
+        </list>
+    </property>
+</bean>
+```
+
+上面的配置使用Spring FactoryBean的实现ListFactoryBean创建一个java.util.List实例，该实例使用从所提供的sourceList中获取的值进行初始化。
+
+After…
+
+```xml
+<!-- creates a java.util.List instance with the supplied values -->
+<util:list id="emails">
+    <value>pechorin@hero.org</value>
+    <value>raskolnikov@slums.org</value>
+    <value>stavrogin@gov.org</value>
+    <value>porfiry@gov.org</value>
+</util:list>
+```
+
+您还可以显式控制实例化和填充的List的确切类型,通过使用<util：list />元素上的list-class属性。例如，如果我们确实需要实例化一个java.util.LinkedList，我们可以使用下面的配置：
+
+```xml
+<util:list id="emails" list-class="java.util.LinkedList">
+    <value>jackshaftoe@vagabond.org</value>
+    <value>eliza@thinkingmanscrumpet.org</value>
+    <value>vanhoek@pirate.org</value>
+    <value>d'Arcachon@nemesis.org</value>
+</util:list>
+```
+
+如果没有提供list-class属性，则容器将选择一个List实现。
+
+#### <util:map/>
+
+Before…
+
+```xml
+<!-- creates a java.util.Map instance with values loaded from the supplied 'sourceMap' -->
+<bean id="emails" class="org.springframework.beans.factory.config.MapFactoryBean">
+    <property name="sourceMap">
+        <map>
+            <entry key="pechorin" value="pechorin@hero.org"/>
+            <entry key="raskolnikov" value="raskolnikov@slums.org"/>
+            <entry key="stavrogin" value="stavrogin@gov.org"/>
+            <entry key="porfiry" value="porfiry@gov.org"/>
+        </map>
+    </property>
+</bean>
+```
+
+上面的配置使用Spring FactoryBean的实现MapFactoryBean来创建一个java.util.Map实例，该实例使用从提供的“sourceMap”中获取的键值对进行初始化。
+
+After…
+
+```xml
+<!-- creates a java.util.Map instance with the supplied key-value pairs -->
+<util:map id="emails">
+    <entry key="pechorin" value="pechorin@hero.org"/>
+    <entry key="raskolnikov" value="raskolnikov@slums.org"/>
+    <entry key="stavrogin" value="stavrogin@gov.org"/>
+    <entry key="porfiry" value="porfiry@gov.org"/>
+</util:map>
+```
+
+你也可以通过在<util：map />元素上使用'map-class'属性来明确地控制将被实例化和填充的Map的确切类型。例如，如果我们确实需要一个java.util.TreeMap来实例化，我们可以使用下面的配置：
+
+```xml
+<util:map id="emails" map-class="java.util.TreeMap">
+    <entry key="pechorin" value="pechorin@hero.org"/>
+    <entry key="raskolnikov" value="raskolnikov@slums.org"/>
+    <entry key="stavrogin" value="stavrogin@gov.org"/>
+    <entry key="porfiry" value="porfiry@gov.org"/>
+</util:map>
+```
+
+如果没有提供'map-class'属性，容器将选择一个Map实现。
+
+#### <util:set/>
+
+Before…
+
+```xml
+<!-- creates a java.util.Set instance with values loaded from the supplied 'sourceSet' -->
+<bean id="emails" class="org.springframework.beans.factory.config.SetFactoryBean">
+    <property name="sourceSet">
+        <set>
+            <value>pechorin@hero.org</value>
+            <value>raskolnikov@slums.org</value>
+            <value>stavrogin@gov.org</value>
+            <value>porfiry@gov.org</value>
+        </set>
+    </property>
+</bean>
+```
+
+上面的配置使用Spring FactoryBean的实现SetFactoryBean创建一个java.util.Set实例，该实例使用从提供的“sourceSet”中获取的值进行初始化。
+
+After…
+
+```xml
+<!-- creates a java.util.Set instance with the supplied values -->
+<util:set id="emails">
+    <value>pechorin@hero.org</value>
+    <value>raskolnikov@slums.org</value>
+    <value>stavrogin@gov.org</value>
+    <value>porfiry@gov.org</value>
+</util:set>
+```
+
+您还可以显式控制将通过在<util：set />元素上使用“set-class”属性实例化和填充的Set的确切类型。例如，如果我们确实需要一个java.util.TreeSet来实例化，我们可以使用下面的配置：
+
+```xml
+<util:set id="emails" set-class="java.util.TreeSet">
+    <value>pechorin@hero.org</value>
+    <value>raskolnikov@slums.org</value>
+    <value>stavrogin@gov.org</value>
+    <value>porfiry@gov.org</value>
+</util:set>
+```
+
+如果没有提供“set-class”属性，则将由容器选择Set实现。
+
+### 9.1.2. The aop schema
+
+aop标签处理在Spring中配置AOP的所有事情：这包括Spring自己的基于代理的AOP框架和Spring与AspectJ AOP框架的集成。这些标签在“[Aspect Oriented Programming with Spring](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop)”一章中进行了全面的介绍。
+
+为了完整起见，要在aop模式中使用标签，您需要在Spring XML配置文件的顶部有以下前导码;以下代码片段中的文本引用了正确的模式，以便aop命名空间中的标签可供您使用。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:aop="http://www.springframework.org/schema/aop" xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd"> <!-- bean definitions here -->
+
+</beans>
+```
+
+### 9.1.3. The context schema
+
+context标签用于处理ApplicationContext配置 - 也就是说，通常配置的不是对最终用户来说很重要的bean，而是在Spring中执行大量基础工作的bean，比如BeanfactoryPostProcessors。以下代码片段引用了正确的模式，以便context名称空间中的标签可供您使用。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:context="http://www.springframework.org/schema/context" xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd"> <!-- bean definitions here -->
+
+</beans>
+```
+
+#### <property-placeholder/>
+
+此元素的配置激活了$ {...}占位符，解析指定的属性文件（即 [Spring resource location](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#resources)）。这个元素是一个设置一个[`PropertyPlaceholderConfigurer`](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-factory-placeholderconfigurer)的方便机制;如果您需要对PropertyPlaceholderConfigurer进行更多的控制，只需明确定义一个。
+
+#### <annotation-config/>
+
+激活Spring基础结构以便在Bean类中检测各种注释：Spring的 [`@Required`](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-required-annotation)和[`@Autowired`](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-annotation-config)，以及JSR 250的@PostConstruct，@PreDestroy和@Resource（如果可用）以及JPA的@PersistenceContext和@PersistenceUnit（如果可用） 。或者，您可以选择为这些注释显式激活单个BeanPostProcessors。
+
+这个元素不会激活Spring的 [`@Transactional`](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/data-access.html#transaction-declarative-annotations)注解的处理。为此，使用[`tx:annotation-driven`](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/data-access.html#tx-decl-explained)元素。
+
+##### <component-scan/>
+
+This element is detailed in [Annotation-based container configuration](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-annotation-config).
+
+##### <load-time-weaver/>
+
+This element is detailed in [Load-time weaving with AspectJ in the Spring Framework](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-aj-ltw).
+
+##### <spring-configured/>
+
+This element is detailed in [Using AspectJ to dependency inject domain objects with Spring](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#aop-atconfigurable).
+
+##### <mbean-export/>
+
+This element is detailed in [Configuring annotation based MBean export](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/integration.html#jmx-context-mbeanexport).
+
+### 9.1.4. The beans schema
+
+最后但并非最不重要的是beans schema中的标签。这些是从框架开始就已经在Spring中使用的标签了。 beans schema中各种标签的例子在这里没有显示，因为它们在[Dependencies and configuration in detail](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans-factory-properties-detailed)中有相当全面的涵盖（甚至整个 [chapter](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#beans)）。
+
+请注意，可以为<bean /> XML定义添加零个或多个键/值对。如果有的话，对这些额外的元数据做什么完全取决于您自己的定制逻辑（因此，如果您正在编写自己的定制标签，那么通常只有在标题为 [XML Schema Authoring](https://docs.spring.io/spring/docs/5.0.2.RELEASE/spring-framework-reference/core.html#xml-custom)的附录中描述）才能使用。
+
+在<bean />的上下文中有<meta />标签的例子（请注意，没有任何逻辑来解释它，元数据实际上是毫无用处的）。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <bean id="foo" class="x.y.Foo">
+        <meta key="cacheName" value="foo"/>
+        <property name="name" value="Rick"/>
+    </bean>
+
+</beans>
+```
+
+在上面的例子中，你会假定有一些逻辑会消费bean定义，并使用提供的元数据设置一些缓存基础设施。
 
